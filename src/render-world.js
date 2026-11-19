@@ -3,28 +3,26 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {cats} from './case.js';
 import {palette} from './scenery.js';
 
-const TAU=2*Math.PI;
 const PLASTER=new Set(['stone','warm','ivory','clay']);
 const sRGB=new T.Color('#fff');
 const ellipsoid=new T.SphereGeometry(1,16,12);
 const cube=new T.BoxGeometry();
 const earShape=new T.ConeGeometry(1,1,4);
-const tempPosition=new T.Vector3();
 
 export function makeWorld(canvas,street,context) {
   const renderer=new T.WebGLRenderer({canvas,context,antialias:true,powerPreference:'high-performance'});
   renderer.toneMapping=T.ACESFilmicToneMapping;
-  renderer.toneMappingExposure=1.12;
+  renderer.toneMappingExposure=1.06;
   renderer.shadowMap.enabled=true;
   renderer.shadowMap.type=T.PCFShadowMap;
   renderer.shadowMap.autoUpdate=true;
   const scene=new T.Scene();
-  scene.background=new T.Color('#bb9a82');
-  scene.fog=new T.FogExp2('#b0947a',.0205);
+  scene.background=new T.Color('#cf9470');
+  scene.fog=new T.FogExp2('#a9826f',.019);
   const camera=new T.PerspectiveCamera(59,1,.15,115);
-  const hemi=new T.HemisphereLight('#fce6d1','#544036',2.04);
-  const sun=new T.DirectionalLight('#ffd6aa',2.75);
-  sun.position.set(-17,24,4);
+  const hemi=new T.HemisphereLight('#b9c9df','#665449',1.55);
+  const sun=new T.DirectionalLight('#ffd39e',3.25);
+  sun.position.set(-18,16,-25);
   sun.target.position.set(0,0,-11);
   sun.castShadow=true;
   sun.shadow.mapSize.set(2048,2048);
@@ -34,11 +32,28 @@ export function makeWorld(canvas,street,context) {
   scene.add(hemi,sun,sun.target);
 
   const textureLoader=new T.TextureLoader();
+  const skyTexture=textureLoader.load('/art/dusk.webp');
+  skyTexture.colorSpace=T.SRGBColorSpace;
+  const sky=new T.Mesh(new T.SphereGeometry(91,26,14),new T.ShaderMaterial({
+    side:T.BackSide,depthWrite:false,uniforms:{clouds:{value:skyTexture}},
+    vertexShader:`varying vec3 vDirection;
+      void main(){vDirection=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec3 vDirection; uniform sampler2D clouds;
+      void main(){vec3 d=normalize(vDirection);float u=atan(d.x,-d.z)*0.15915494+0.5;
+        float v=clamp(d.y*1.37+0.115,0.005,0.995);
+        vec3 color=texture2D(clouds,vec2(u,v)).rgb;
+        color=mix(color,vec3(.37,.195,.118),1.0-smoothstep(0.0,.09,max(d.y,0.0)));
+        gl_FragColor=vec4(color,1.0);
+        #include <colorspace_fragment>
+      }`
+  }));
+  sky.renderOrder=-5;
+  scene.add(sky);
   const maxAniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   const textures={};
-  for(const name of ['stone','cobble','wood','rug']){
+  for(const name of ['stone','cobble','wood','rug','cobble-relief','stone-relief']){
     const tex=textureLoader.load('/art/'+name+'.webp');
-    tex.colorSpace=T.SRGBColorSpace;
+    tex.colorSpace=name.endsWith('-relief')?T.NoColorSpace:T.SRGBColorSpace;
     tex.wrapS=tex.wrapT=T.RepeatWrapping;
     tex.anisotropy=maxAniso;
     textures[name]=tex;
@@ -47,7 +62,7 @@ export function makeWorld(canvas,street,context) {
   for(const [name,color] of Object.entries(palette)){
     const map=PLASTER.has(name)?textures.stone:name==='teal'?textures.wood:textures[name];
     const hue=map && name==='teal' ? '#a7c7b7' : map && name==='cobble' ? '#b5a792' : PLASTER.has(name) ? new T.Color(color).lerp(sRGB,.46) : name==='rug' ? '#cda99b' : name==='wood' ? '#9a7656' : color;
-    mats[name]=new T.MeshStandardMaterial({color:hue,map:map||null,roughness:name==='brass'?.34:.86,metalness:name==='brass'?.56:name==='iron'?.44:0,side:T.DoubleSide});
+    mats[name]=new T.MeshStandardMaterial({color:hue,map:map||null,roughness:name==='brass'?.34:name==='cobble'?.64:.86,bumpMap:name==='cobble'?textures['cobble-relief']:PLASTER.has(name)?textures['stone-relief']:null,bumpScale:name==='cobble'?.079:.045,metalness:name==='brass'?.56:name==='iron'?.44:0,side:T.DoubleSide});
     if(name==='glass'){mats[name].emissive.set('#ffb84c');mats[name].emissiveIntensity=1.7;}
   }
   function geometry(p){
@@ -134,6 +149,21 @@ export function makeWorld(canvas,street,context) {
     sprite.position.set(p.x,p.y,p.z);
     scene.add(sprite);
   }
+  const warmSources=street.lamps.filter(p=>!p.string);
+  const practicals=Array.from({length:4},()=>new T.PointLight('#ffae64',13,6,2));
+  scene.add(...practicals);
+  let lampKey='';
+  const shadowCanvas=document.createElement('canvas');
+  shadowCanvas.width=64;shadowCanvas.height=64;
+  const shadeCtx=shadowCanvas.getContext('2d');
+  const contact=shadeCtx.createRadialGradient(32,32,3,32,32,30);
+  contact.addColorStop(0,'#20170ec9');contact.addColorStop(.58,'#20170e62');contact.addColorStop(1,'#20170e00');
+  shadeCtx.fillStyle=contact;shadeCtx.fillRect(0,0,64,64);
+  const shadowTexture=new T.CanvasTexture(shadowCanvas);
+  const contactShadows=Array.from({length:9},()=>{
+    const mesh=new T.Mesh(new T.PlaneGeometry(.85,1.46),new T.MeshBasicMaterial({map:shadowTexture,transparent:true,depthWrite:false,opacity:.52}));
+    mesh.rotation.x=-Math.PI/2;scene.add(mesh);return mesh;
+  });
   const hero=makeCat({fur:'#8a6056',dark:'#453833',cream:'#e6c9a7',eyes:'#9fab73'},-1);
   const visitors=cats.map((c,id)=>makeCat(c,id));
   scene.add(hero.root,...visitors.map(v=>v.root));
@@ -150,6 +180,18 @@ export function makeWorld(canvas,street,context) {
     }
     const {view,player,npcs}=state;
     camera.position.set(view.x,view.y,view.z);
+    sky.position.copy(camera.position);
+    const chunk=Math.round(player.x/2)+':'+Math.round(player.z/2);
+    if(chunk!==lampKey){
+      lampKey=chunk;
+      const nearest=warmSources.slice().sort((a,b)=>((a.x-player.x)**2+(a.z-player.z)**2)-((b.x-player.x)**2+(b.z-player.z)**2));
+      practicals.forEach((l,i)=>{const p=nearest[i];l.position.set(p.x,p.y,p.z);});
+    }
+    [player,...npcs].forEach((p,i)=>{
+      contactShadows[i].position.set(p.x,.012+i*.00005,p.z);
+      contactShadows[i].rotation.z=-p.yaw;
+      contactShadows[i].material.opacity=.58*Math.max(.27,1-p.y*.62);
+    });
     camera.lookAt(view.tx,view.ty,view.tz);
     pose(hero,player,state.time);
     for(let i=0;i<npcs.length;i++)pose(visitors[i],npcs[i],state.time);
@@ -172,8 +214,8 @@ function makeCat(c,id) {
     parent.add(mesh);return mesh;
   };
   const ball=(mat,x,y,z,sx,sy,sz,parent)=>object(ellipsoid,mat,x,y,z,sx,sy,sz,parent);
-  ball(fur,0,.42,.02,.222,.233,.44);
-  ball(fur,0,.42,.28,.225,.224,.222);
+  ball(fur,0,.43,.01,.179,.196,.41);
+  ball(fur,0,.44,.25,.188,.198,.226);
   ball(cream,0,.327,-.10,.19,.126,.28);
   ball(shade,0,.565,.13,.177,.088,.249);
   for(const z of [-.01,.12,.245]){
@@ -183,8 +225,8 @@ function makeCat(c,id) {
   ball(scarf,0,.49,-.282,.191,.123,.13);
   object(cube,scarf,.026,.51,-.34,.123,.16,.11).rotation.z=.52;
   const head=new T.Group();head.position.set(0,.62,-.34);body.add(head);
-  ball(fur,0,0,-.06,.223,.189,.203,head);
-  ball(cream,0,-.061,-.197,.146,.085,.12,head);
+  ball(fur,0,0,-.06,.193,.164,.184,head);
+  ball(cream,0,-.058,-.175,.133,.073,.108,head);
   ball(pink,0,-.034,-.297,.042,.024,.026,head);
   for(const x of [-1,1]){
     object(earShape,shade,x*.151,.181,-.025,.081,.194,.075,head).rotation.z=-x*.14;
@@ -201,7 +243,7 @@ function makeCat(c,id) {
   const legs=[];
   for(const x of [-.133,.133])for(const z of [-.245,.25]){
     const leg=new T.Group();leg.position.set(x,.329,z);body.add(leg);
-    ball(fur,0,-.11,0,.083,.172,.091,leg);
+    ball(fur,0,-.12,0,.069,.16,.073,leg);
     ball(paws,0,-.26,-.035,.076,.062,.098,leg);
     legs.push(leg);
   }
@@ -226,13 +268,25 @@ function makeCat(c,id) {
 function pose(model,p,time){
   const {root,body,head,legs,tail,bag}=model,ph=p.gaits||0;
   const speed=Math.max(0,p.speed||0);
-  const stride=p.y>.14?.28:Math.min(speed/4,.92)*.7;
+  const stride=Math.min(speed/4.8,1)*.70;
+  const fast=Math.max(0,Math.min(1,(speed-3.4)/3));
+  const launch=p.pounce>0;
   root.position.set(p.x,p.y||0,p.z);
   root.rotation.y=-p.yaw;
-  body.position.y=Math.abs(Math.sin(ph))*.046*Math.min(speed,2);
-  body.rotation.x=p.air ? -.09:Math.sin(ph*2)*.025*Math.min(speed,1);
+  body.position.y=p.pinned?-.21:Math.sin(time*3.2)*.006+Math.abs(Math.sin(ph))*.029*Math.min(speed,2)-(p.impact||0)*.45;
+  body.scale.set(launch?.89:1,p.pinned?.68:launch?.84:1,launch?1.24:1+fast*.12*Math.sin(ph));
+  body.rotation.z=p.pinned?.67:(p.lean||0);
+  body.rotation.x=launch?.11:p.air?-.14:Math.sin(ph*2)*(.017+fast*.045);
+  head.rotation.x=launch?-.12:p.pinned?.16:Math.sin(ph)*.032;
   head.rotation.y=speed<.25?Math.sin(time*1.4+(p.id||0))*.14:0;
-  legs.forEach((leg,j)=>{leg.rotation.x=Math.sin(ph+(j===0||j===3?0:Math.PI))*stride;});
+  legs.forEach((leg,j)=>{
+    const front=j%2===0;
+    const walkPhase=[0,Math.PI,.52*Math.PI,1.52*Math.PI][j];
+    const gallopPhase=[0,2.65,.54,3.18][j];
+    const swing=Math.sin(ph+walkPhase+(gallopPhase-walkPhase)*fast);
+    leg.position.y=.329+(p.air?.04:Math.max(0,swing)*.052)*Math.min(1,speed/2);
+    leg.rotation.x=p.pinned?1.05:launch?(front?-.98:1):p.air?(front?-.50:.70):swing*stride;
+  });
   tail.forEach((part,i)=>{
     part.rotation.x=(i===0?-.45:-.11)+.14*Math.sin(time*3.7+i*.65+ph*.22);
     part.rotation.y=.18*Math.sin(time*2.85+i*.42+(p.id||0));

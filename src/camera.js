@@ -1,20 +1,23 @@
 import {bounds,heightAt} from './district.js';
 
-export function follow(player,heading,pitch) {
+export function follow(player,heading,pitch,target=null,reducedMotion=false) {
   const fx=Math.sin(heading),fz=-Math.cos(heading);
-  let radius=4.8;
-  const ty=.8+player.y*.41;
-  const y=Math.max(1.02,2.48+player.y*.75+pitch*3.25);
-  while(radius>1.05) {
-    const xx=player.x-fx*radius+Math.cos(heading)*.55;
-    const zz=player.z-fz*radius+Math.sin(heading)*.55;
-    if(heightAt(xx,zz,.1)<y-.3 && xx>bounds.left-.8&&xx<bounds.right+.8&&zz<bounds.front+1.1)break;
-    radius-=.45;
+  const run=Math.max(0,Math.min(1,(player.speed-3.9)/2.8));
+  const sway=reducedMotion?0:Math.sin(player.gaits*.52)*.028*Math.min(1,player.speed);
+  const radius=target?3.15:4.1+run*.85;
+  const y=Math.max(.95,2.06+.65*player.y+pitch*3.1+run*.14+sway);
+  const focus={x:player.x+fx*2.75,y:.63+player.y*.45+pitch*1.43,z:player.z+fz*2.75};
+  if(target){focus.x=(player.x+target.x)*.5;focus.y=.47;focus.z=(player.z+target.z)*.5;}
+  let found={x:player.x,y,z:player.z};
+  // Keep the whole camera boom in free space, even as it swings around corners.
+  for(let d=.3;d<=radius+.06;d+=.25){
+    const shoulder=Math.min(.43,d*.16);
+    const x=player.x-fx*d+Math.cos(heading)*shoulder;
+    const z=player.z-fz*d+Math.sin(heading)*shoulder;
+    if(heightAt(x,z,.24)>y-.24||x<bounds.left-.15||x>bounds.right+.15||z>bounds.front+.85||z<bounds.back-.8)break;
+    found={x,y,z};
   }
-  return {
-    x:player.x-fx*radius+Math.cos(heading)*.55,y,z:player.z-fz*radius+Math.sin(heading)*.55,
-    tx:player.x+fx*3.45,ty:ty+pitch*1.55,tz:player.z+fz*3.45,
-  };
+  return {...found,tx:focus.x,ty:focus.y,tz:focus.z};
 }
 
 export function projection(v,w,h) {

@@ -17,7 +17,7 @@ Practice opens without a wallet and stores its answer in the browser. The bazaar
 
 ## Encrypted Sepolia mode
 
-The Solidity game selects an encrypted culprit uniformly from eight possibilities. Each request marks only its computed one-bit clue decryptable (scarf, tail tip and paws in the 3D level). Accusing locks the guess before the answer can be decrypted. Settlement verifies the Zama KMS proof for the case's reveal handle and computes the score from onchain state. Runs are independent. Case-local clue results may be decrypted publicly once opened. No wagers or prizes.
+The Solidity game selects an encrypted culprit uniformly from eight possibilities. Each request marks only its computed one-bit clue decryptable (scarf, tail tip and paws in the 3D level). Accusing locks the guess before the answer can be decrypted. The guess is compared against the encrypted culprit using FHE. Settlement verifies one Zama KMS proof for the identity and encrypted comparison before calculating the investigation score. The in-game result links to the settlement transaction. An interrupted accusation can resume by reconnecting the same wallet. Runs are independent. Case-local clue results may be decrypted publicly once opened. No wagers or prizes.
 
 ```sh
 cd onchain
@@ -27,6 +27,6 @@ npm test
 npm run deploy:sepolia
 ```
 
-Set the emitted address as `VITE_BAZAAR_CONTRACT` in the Vite build environment, then rebuild the frontend. Players enter **Play on Sepolia** with a wallet browser and Sepolia test ETH. Each attempt can be finished from one wallet. The contract verifies deductions and the client runs exploration and pursuit.
+Set the emitted address as `VITE_BAZAAR_CONTRACT` in the Vite build environment, then rebuild the frontend. Players enter **Use a Sepolia wallet** with a wallet browser and Sepolia test ETH. For a phone only flow, open `/deploy.html` in the wallet browser. Sign the deployment, then share its **Play encrypted case** link. The address in that link is accepted only if the deployed runtime matches the published contract build. After editing the contract, compile and run `node onchain/scripts/export-browser.cjs` from the repository root to update that build. Each attempt can be finished from one wallet. The contract verifies deductions and the client runs exploration and pursuit.
 
 Do not put the deployer key in the frontend, repository, or hosting variables. Without the contract address the site serves practice mode.

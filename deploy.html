@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#201b16">
+  <meta name="robots" content="noindex">
+  <title>Deploy to Sepolia · Paws &amp; Alibis</title>
+</head>
+<body class="deploy-page">
+<main class="deploy-card">
+  <a class="home" href="/">Paws &amp; Alibis</a>
+  <div class="kicker">ETHEREUM SEPOLIA</div>
+  <h1>Deploy the case contract</h1>
+  <p class="intro">Open this page in a wallet browser with Sepolia test ETH. Your wallet signs a contract deployment on the testnet.</p>
+  <button class="primary" id="connect" type="button">Connect Sepolia wallet</button>
+  <section id="estimate" hidden>
+    <p id="fee"></p>
+    <button class="primary" id="deploy" type="button">Deploy with wallet</button>
+  </section>
+  <p id="message" role="status"></p>
+  <section id="done" hidden>
+    <a id="transaction" target="_blank" rel="noopener noreferrer">View deployment transaction ↗</a>
+    <a class="primary launch" id="game-link">Play encrypted case</a>
+    <button id="copy" class="sub" type="button">Copy game link</button>
+  </section>
+</main>
+<script type="module" src="/src/deploy.js"></script>
+</body>
+</html>

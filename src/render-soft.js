@@ -90,7 +90,7 @@ export function makeSoftWorld(canvas,street) {
   const ctx=canvas.getContext('2d',{alpha:false});
   if(!ctx)throw new Error('This browser could not start the 3D view.');
   const faces=terrain(street),imgs={};
-  for(const name of ['cobble','stone','wood','rug','cat-frames','hero-frames']){
+  for(const name of ['cobble','stone','wood','rug','dusk','cat-frames','hero-frames']){
     const image=new Image();
     image.src='/art/'+name+'.webp';
     imgs[name]=image;
@@ -133,6 +133,7 @@ export function makeSoftWorld(canvas,street) {
     const gradient=ctx.createLinearGradient(0,0,0,h*.65);
     gradient.addColorStop(0,'#8d8a8e');gradient.addColorStop(.65,'#d3a283');gradient.addColorStop(1,'#d5aa87');
     ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);
+    if(isReady(imgs.dusk))ctx.drawImage(imgs.dusk,0,0,w,h*.61);
     const proj=projection(state.view,w,h);
     const project=verts=>clip(verts.map(p=>proj.view(...p))).map(proj.screen);
     const visible=pts=>pts.length>2&&!([pts.every(p=>p[0]<0),pts.every(p=>p[0]>w),pts.every(p=>p[1]<0),pts.every(p=>p[1]>h)].some(Boolean));
@@ -180,6 +181,9 @@ export function makeSoftWorld(canvas,street) {
         const size=proj.lens*1.14/z;
         const hero=cat===state.player;
         const image=hero ? imgs['hero-frames']:imgs['cat-frames'];
+        const floor=proj.point(cat.x,.01,cat.z);
+        ctx.fillStyle='rgba(31,19,13,.24)';
+        ctx.beginPath();ctx.ellipse(floor[0],floor[1],size*.39,size*.091,0,0,Math.PI*2);ctx.fill();
         if(isReady(image)){
           const g=cat.speed>.14&&cat.y<.24 ? Math.floor((cat.gaits||0)*1.12)%6:0;
           const id=hero?0:cat.id;
@@ -187,11 +191,12 @@ export function makeSoftWorld(canvas,street) {
           if(hero){
             const relative=Math.atan2(Math.sin(cat.yaw-state.heading),Math.cos(cat.yaw-state.heading));
             const direction=(Math.round(relative/(Math.PI/4))+8)%8;
-            ctx.drawImage(image,g*90,direction*65,90,65,x-size*.55,y-size*.77,size*1.1,size*.795);
+            const stretch=cat.pounce>0?1.24:1;
+            ctx.drawImage(image,g*90,direction*65,90,65,x-size*.55*stretch,y-size*.77,size*1.1*stretch,size*(cat.pounce>0?.69:.795));
           } else {
             const frame=g+(cat.fleeing?6:0);
             ctx.save();ctx.translate(x,y);ctx.scale(side<0?-1:1,1);
-            ctx.drawImage(image,frame*90,id*65,90,65,-size*.68,-size*.82,size*1.36,size*.98);
+            ctx.drawImage(image,frame*90,id*65,90,65,-size*.68,-size*(cat.pinned?.55:.82),size*1.36,size*(cat.pinned?.69:.98));
             ctx.restore();
           }
         }else{

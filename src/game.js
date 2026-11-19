@@ -5,9 +5,10 @@ import '@fontsource/fraunces/latin-600.css';
 import '@fontsource/fraunces/latin-500-italic.css';
 import './game.css';
 import {cats,makePractice} from './case.js';
-import {entrance,evidenceSites,newVisitors,heightAt,moveBody,patrol,distance,escapeRoute,advanceEscape} from './district.js';
+import {entrance,evidenceSites,newVisitors,patrol,distance,escapeRoute,advanceEscape,heightAt} from './district.js';
 import {makeStreet} from './scenery.js';
 import {follow,projection} from './camera.js';
+import {makePlayer,stepPlayer,startPounce,canPounce} from './motion.js';
 import {makeSoftWorld} from './render-soft.js';
 
 const $=id=>document.getElementById(id);
@@ -29,29 +30,32 @@ function useSoftware(){
   renderer=makeSoftWorld(canvas,street);
 }
 const keys=new Set();
-let game=makePractice(),backendReady=false,view,heading=0,pitch=0,npcs,player,clues,route,leader;
+let game=makePractice(),verifiedCase=false,verdict=null,view,heading=0,pitch=0,npcs,player,clues,route,leader;
 let stage='cover',near=null,time=0,previous=0,busy=false,stamina=1,chaseLead=0,sprintTouch=false,jumpQueued=false;
-let jx=0,jy=0,audio,muted=true,toastTimer,shake=0;
+let jx=0,jy=0,audio,muted=true,toastTimer,shake=0,cooldown=0,pinTime=0,stepClock=0,airborne=false;
 const modal=$('panel');
 const prefs=matchMedia('(prefers-reduced-motion: reduce)').matches;
-const newHero=()=>({...entrance,y:0,yaw:0,gaits:0,speed:0,vy:0,air:false});
+const newHero=()=>makePlayer(entrance);
 function resetWorld(){
   player=newHero();npcs=newVisitors();clues=new Map();route=[];leader=null;
-  heading=0;pitch=0;stamina=1;time=0;near=null;view=follow(player,heading,pitch);
+  heading=0;pitch=0;stamina=1;time=0;near=null;cooldown=0;pinTime=0;stepClock=0;airborne=false;verdict=null;view=follow(player,heading,pitch);
 }
 resetWorld();
 $('game').classList.add('cover-visible');
-const feature=import.meta.env.VITE_BAZAAR_CONTRACT;
-if(feature)$('chain').hidden=false;
+const contractParam=new URL(location.href).searchParams.get('caseContract');
+const feature=/^0x[\da-f]{40}$/i.test(contractParam||'') ? contractParam : import.meta.env.VITE_BAZAAR_CONTRACT;
+$('chain').hidden=!feature;
 
 function label(phase,title,detail){
   $('phase').textContent=phase;$('objective').textContent=title;$('detail').textContent=detail;
 }
 function objective(){
   if(stage==='hunt'){
-    label('CASE 01 · INVESTIGATION',clues.size===3?'Find your suspect':'Investigate the bazaar',clues.size===3?'Match the scarf, tail tip and paws.':clues.size+' / 3 clues · Follow the marker to inspect evidence.');
+    label(verifiedCase?'SEPOLIA · INVESTIGATION':'CASE 01 · INVESTIGATION',clues.size===3?'Find your suspect':'Investigate the bazaar',clues.size===3?'Match the scarf, tail tip and paws.':clues.size+' / 3 clues · Follow the marker to inspect evidence.');
   }else if(stage==='chase'){
     label('CASE 01 · PURSUIT','Catch the thief','Sprint or cut through the lanes. Get close and pounce.');
+  }else if(stage==='capture'){
+    label('THIEF CAUGHT','Biryani recovered','');
   }else if(stage==='complete'){
     label('CASE CLOSED','Biryani recovered','Open Case notes to play again.');
   }else if(stage==='escaped'){
@@ -62,6 +66,15 @@ function objective(){
 function tell(text){
   clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;
   toastTimer=setTimeout(()=>$('toast').hidden=true,2900);
+}
+function footstep(hard){
+  if(muted||!audio)return;
+  const len=hard?.105:.047,buffer=audio.createBuffer(1,Math.floor(audio.sampleRate*len),audio.sampleRate);
+  const wave=buffer.getChannelData(0);
+  for(let i=0;i<wave.length;i++)wave[i]=(Math.random()*2-1)*Math.pow(1-i/wave.length,2.5);
+  const source=audio.createBufferSource(),filter=audio.createBiquadFilter(),gain=audio.createGain();
+  source.buffer=buffer;filter.type='lowpass';filter.frequency.value=hard?625:490;gain.gain.value=hard?.155:.058;
+  source.connect(filter);filter.connect(gain);gain.connect(audio.destination);source.start();
 }
 function ping(f,length=.11,level=.045,delay=0){
   if(muted||!audio)return;
@@ -79,14 +92,18 @@ async function start(useChain=false){
   const button=$('start');button.disabled=true;$('chain').disabled=true;
   const original=button.innerHTML;
   try{
-    if(useChain){
+    const wantsChain=useChain||(stage!=='cover'&&verifiedCase);
+    if(wantsChain && !verifiedCase){
       button.textContent='Connecting to Sepolia…';
       const {makeVerified}=await import('./sepolia.js');game=await makeVerified(feature);
-    }else if(!backendReady){game=makePractice();}
-    await game.start();backendReady=true;resetWorld();stage='hunt';
+    }else if(!wantsChain){game=makePractice();}
+    const resumed=await game.start({resume:wantsChain&&stage==='cover'});
+    verifiedCase=wantsChain;resetWorld();stage='hunt';
+    if(resumed?.clues)clues=resumed.clues;
     $('cover').hidden=true;$('game').classList.remove('cover-visible');
     objective();ping(328);ping(493,.18,.045,.1);
-  }catch(e){backendReady=false;tell(e.shortMessage||e.message||'Could not start the case.');}
+    if(resumed?.result)beginChase(resumed.result);
+  }catch(e){tell(e.shortMessage||e.message||'Could not start the case.');}
   finally{busy=false;button.disabled=false;$('chain').disabled=false;button.innerHTML=original;}
 }
 $('start').addEventListener('click',()=>start());
@@ -116,40 +133,51 @@ async function accuse(id){
   try{
     const result=await game.accuse(id);
     modal.close();
-    leader=npcs[result.culprit];
-    if(!result.correct){show('<div class="kicker">WRONG SUSPECT</div><h2>The thief ran.</h2><p>'+cats[result.culprit].name+' bolted with the biryani. You can still catch them.</p><form method="dialog"><button class="primary">Give chase</button></form>');}
-    // Start the chase a few steps ahead so it remains playable from a wrong accusation.
-    if(distance(player,leader)>8){
-      const z=Math.max(-29,Math.min(7,player.z-5));
-      leader.x=Math.max(-5,Math.min(5,player.x));
-      leader.z=z;
-    }
-    if(distance(player,leader)<2.7){const prepared=escapeRoute(leader)[0]; if(prepared&&distance(player,prepared)>2.7){leader.x=prepared.x;leader.z=prepared.z;}else leader.z=Math.max(-30,leader.z-3.05);}
-    leader.fleeing=true;route=escapeRoute(leader);
-    stage='chase';chaseLead=1.1;shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
+    beginChase(result);
   }catch(e){
     tell(e.shortMessage||e.message||'Could not check that accusation.');
     if($('accuse')){$('accuse').disabled=false;$('accuse').textContent='Retry accusation';}
   }finally{busy=false;}
+}
+function beginChase(result){
+    verdict=result;
+    leader=npcs[result.culprit];
+    if(!result.correct){show('<div class="kicker">WRONG SUSPECT</div><h2>The thief ran.</h2><p>'+cats[result.culprit].name+' bolted with the biryani. You can still catch them.</p><form method="dialog"><button class="primary">Give chase</button></form>');}
+    // Reposition only a distant thief, to a nearby open patch of street.
+    if(distance(player,leader)>10){
+      const options=[[-4,-4],[0,-5],[4,-4],[-4,4],[0,4],[4,4]]
+        .map(([x,z])=>({x:Math.min(18.9,Math.max(-18.9,player.x+x)),z:Math.min(12,Math.max(-30,player.z+z))}))
+        .filter(p=>heightAt(p.x,p.z,.55)===0 && distance(player,p)>3.5);
+      if(options.length) Object.assign(leader,options[0]);
+    }
+    if(distance(player,leader)<2.3){
+      const options=[{x:leader.x,z:leader.z-2.4},{x:leader.x+2.6,z:leader.z},{x:leader.x-2.6,z:leader.z}];
+      const patch=options.find(p=>heightAt(p.x,p.z,.4)===0&&p.z>-32&&distance(player,p)>2.1);
+      if(patch)Object.assign(leader,patch);
+    }
+    leader.fleeing=true;leader.speed=0;route=escapeRoute(leader);
+    stage='chase';chaseLead=1.1;shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
 }
 function finish(won){
   stage=won?'complete':'escaped';
   leader.speed=0;leader.fleeing=!won;
   objective();
   if(won){ping(523,.22);ping(659,.23,.05,.10);ping(784,.31,.05,.19);}
-  show('<div class="kicker">'+(won?'CASE CLOSED':'CHASE LOST')+'</div><h2>'+(won?'Dinner is saved.':'The thief got away.')+'</h2><p>'+(won?'You caught '+cats[leader.id].name+' after finding '+clues.size+' '+(clues.size===1?'clue':'clues')+'.':'Cut through the alleys and save some sprint for the last stretch.')+'</p><button class="primary" id="again">'+(won?'New case':'Retry chase')+'</button>');
+  const proof=won&&verdict?.receipt ? '<p class="proof"><a target="_blank" rel="noopener noreferrer" href="'+verdict.receipt+'">View investigation proof on Sepolia ↗</a></p>' : '';
+  const deduction=won&&verdict ? '<p class="deduction">'+(verdict.correct?'Correct accusation':'Wrong accusation')+' · '+verdict.score+' investigation points</p>' : '';
+  show('<div class="kicker">'+(won?'CASE CLOSED':'CHASE LOST')+'</div><h2>'+(won?'Dinner is saved.':'The thief got away.')+'</h2><p>'+(won?'You caught '+cats[leader.id].name+' after finding '+clues.size+' '+(clues.size===1?'clue':'clues')+'.':'Cut through the alleys and save some sprint for the last stretch.')+'</p>'+deduction+proof+'<button class="primary" id="again">'+(won?'New case':'Retry chase')+'</button>');
   $('again').addEventListener('click',()=>{
     modal.close();
     if(won)start();
     else{
       const first=escapeRoute({...entrance,x:0,z:5.7});
-      Object.assign(player,newHero());Object.assign(leader,{x:0,z:5.7,y:0,fleeing:true});route=first;heading=0;stamina=1;chaseLead=1.35;stage='chase';objective();
+      Object.assign(player,newHero());Object.assign(leader,{x:0,z:5.7,y:0,fleeing:true,pinned:false,speed:0});route=first;heading=0;view=follow(player,0,0);stamina=1;cooldown=0;chaseLead=1.35;stage='chase';objective();
     }
   });
 }
 async function interact(){
   if(busy||!near||modal.open)return;
-  if(near.type==='chase'){finish(true);return;}
+  if(near.type==='chase'){pounce();return;}
   if(near.type==='cat'){ask(near.id);return;}
   const id=near.id;
   busy=true;$('act').disabled=true;
@@ -159,12 +187,20 @@ async function interact(){
   }catch(error){tell(error.shortMessage||error.message||'Could not inspect that clue.');}
   finally{busy=false;$('act').disabled=false;}
 }
+function pounce(){
+  if(stage!=='chase'||cooldown>0||!startPounce(player,leader))return false;
+  cooldown=.66;ping(145,.2,.07);return true;
+}
+function capture(){
+  stage='capture';pinTime=.87;player.pounce=0;player.speed=0;player.vx=0;player.vz=0;player.vy=0;player.y=leader.y;player.air=false;
+  leader.speed=0;leader.pinned=true;shake=.115;objective();footstep(true);
+}
 $('act').addEventListener('click',interact);
 const gameKeys=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','ShiftLeft','ShiftRight','Space','KeyE','KeyQ']);
 document.addEventListener('keydown',e=>{
   if(!gameKeys.has(e.code)||modal.open||stage==='cover'||e.metaKey||e.ctrlKey)return;
   e.preventDefault();keys.add(e.code);
-  if(!e.repeat && e.code==='Space')jumpQueued=true;
+  if(!e.repeat && e.code==='Space'&&!pounce())jumpQueued=true;
   if(!e.repeat && e.code==='KeyE')interact();
   if(!e.repeat && e.code==='KeyQ')notes();
 });
@@ -189,7 +225,7 @@ for(const type of ['pointerup','pointercancel','lostpointercapture'])stick.addEv
 });
 $('sprint').addEventListener('pointerdown',e=>{sprintTouch=true;$('sprint').setPointerCapture(e.pointerId);});
 for(const type of ['pointerup','pointercancel','lostpointercapture'])$('sprint').addEventListener(type,()=>sprintTouch=false);
-$('jump').addEventListener('pointerdown',()=>jumpQueued=true);
+$('jump').addEventListener('pointerdown',()=>{if(!pounce())jumpQueued=true;});
 function bindCamera(){
   let drag=null;
   canvas.addEventListener('pointerdown',e=>{
@@ -211,39 +247,34 @@ function update(dt){
   if(stage==='cover'||modal.open)return;
   const x=key('KeyD','ArrowRight')-key('KeyA','ArrowLeft')+jx;
   const z=key('KeyW','ArrowUp')-key('KeyS','ArrowDown')+jy;
-  let speed=3.9;
-  const len=Math.hypot(x,z);
-  const running=len>.01&&(sprintTouch||key('ShiftLeft','ShiftRight'))&&stamina>.04;
-  if(running){speed=6.3;stamina=Math.max(0,stamina-dt*.15);}
-  else stamina=Math.min(1,stamina+dt*.27);
+  cooldown=Math.max(0,cooldown-dt);
+  const running=Math.hypot(x,z)>.07&&(sprintTouch||key('ShiftLeft','ShiftRight'))&&stamina>.07;
+  if(running)stamina=Math.max(0,stamina-dt*.145);
+  else stamina=Math.min(1,stamina+dt*.30);
   $('stamina').firstElementChild.style.transform='scaleX('+stamina+')';
-  if(jumpQueued && !player.air){player.vy=4.9;player.air=true;ping(160,.12,.025);}
+  const chasing=stage==='chase';
+  if(stage==='capture'){
+    pinTime-=dt;
+    if(pinTime<=0){finish(true);return;}
+  }else if(stage==='hunt'||chasing){
+    const pouncing=player.pounce>0;
+    stepPlayer(player,{x,z,heading,run:running,jump:jumpQueued,target:chasing?leader:null},dt);
+    if(!player.air&&airborne)footstep(true);
+    if(!player.air&&player.speed>.6){
+      stepClock+=player.speed*dt;
+      if(stepClock>.72){stepClock=0;footstep(false);}
+    }
+    airborne=player.air;
+    for(const npc of npcs){if(npc!==leader)patrol(npc,time,dt,player);}
+    if(chasing){
+      chaseLead-=dt;
+      if(chaseLead<=0)advanceEscape(leader,route,dt);
+      if(pouncing&&distance(player,leader)<.83&&Math.abs(player.y-leader.y)<.71){capture();}
+      else if(!route.length){finish(false);return;}
+    }
+  }
   jumpQueued=false;
-  if(player.air){
-    player.vy-=dt*11.8;player.y+=player.vy*dt;
-    const platform=heightAt(player.x,player.z,.23);
-    if(player.vy<0&&player.y<=platform){player.y=platform;player.vy=0;player.air=false;}
-  }
-  const moving=len>.035;
-  if(moving){
-    const k=speed/Math.max(1,len);
-    const dx=(Math.cos(heading)*x+Math.sin(heading)*z)*k;
-    const dz=(Math.sin(heading)*x-Math.cos(heading)*z)*k;
-    const t=Math.atan2(dx,-dz);
-    player.yaw+=Math.atan2(Math.sin(t-player.yaw),Math.cos(t-player.yaw))*Math.min(1,dt*17);
-    const oldX=player.x,oldZ=player.z;
-    moveBody(player,dx*dt,dz*dt);
-    const moved=Math.hypot(player.x-oldX,player.z-oldZ);
-    player.speed=moved/dt;player.gaits+=moved*7.4;
-    if(heightAt(player.x,player.z,.21)<player.y-.045&&!player.air){player.air=true;player.vy=0;}
-  }else player.speed=0;
-  for(const npc of npcs){if(npc!==leader)patrol(npc,time,dt,player);}
-  if(stage==='chase'){
-    chaseLead-=dt;
-    if(chaseLead<=0)advanceEscape(leader,route,dt);
-    if(!route.length){finish(false);return;}
-  }
-  const next=follow(player,heading,pitch);
+  const next=follow(player,heading,pitch,stage==='capture'?leader:null,prefs);
   for(const k of Object.keys(next))view[k]+=(next[k]-view[k])*Math.min(1,dt*(k.length===1?11:14));
   if(shake>.001){if(!prefs)view.x+=Math.sin(time*65)*shake;shake*=.89;}
 }
@@ -256,10 +287,11 @@ function indicators(){
   const close=npcs.filter(p=>distance(p,player)<1.85).sort((a,b)=>distance(a,player)-distance(b,player))[0];
   let marker=evidence[0];
   if(stage==='chase'){
-    marker=leader;near=distance(player,leader)<1.75?{type:'chase'}:null;
+    marker=leader;near=cooldown<=0&&canPounce(player,leader)?{type:'chase'}:null;
   }else if(marker&&distance(marker,player)<2.25)near=marker;
   else near=close?{type:'cat',id:close.id}:null;
   $('act').hidden=!near;
+  $('jump').textContent=near?.type==='chase'?'Pounce':'Jump';
   if(near)$('act').lastElementChild.textContent=near.type==='evidence'?'Inspect '+near.name:near.type==='chase'?'Pounce':'Question '+cats[near.id].name;
   const w=canvas.clientWidth,h=canvas.clientHeight,p=projection(view,w,h);
   $('waypoint').hidden=!marker;
