@@ -9,7 +9,7 @@ The Sepolia contract randomly selects the culprit in encrypted form. Each clue i
 - Code: https://github.com/Asadlee24/paws-and-alibis
 - Public game: https://paws-and-alibis.vercel.app/
 - Encrypted demo URL, Sepolia contract and successful settlement: attach after the live round.
-- Three-minute human-presented video and published X thread: attach their share links.
+- Human-presented video, up to three minutes, and public X post: attach their share links. A video posted on X can serve as both links. YouTube and Loom are also accepted for the video.
 - Registration email: use the email used for the Zama API key. The form permits one uneditable submission per email.
 
 ## Three-minute recording script
@@ -33,10 +33,14 @@ Record with your own voice and appear on camera at least in the intro. Use the c
 
 ## X thread draft
 
+Post from your X profile after the encrypted round has been verified. You can attach your pitch video to the opening post and use its URL for both form fields.
+
 **1/4**  
 Someone stole the biryani. Eight cats are suspects. 🐾
 
 I built Paws & Alibis, a detective game set in a Peshawar-inspired bazaar. Follow the clues, accuse a suspect, then chase the thief through the streets.
+
+@zama #ZamaDeveloperProgram
 
 **2/4**  
 The Sepolia contract chooses the thief at random and keeps their identity encrypted. Zama computes the clues from that secret, and only the player who opened the case can decrypt their clues.
