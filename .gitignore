@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.*
+!.env.example
+onchain/artifacts/
+onchain/cache/
+onchain/fhevmTemp/
+onchain/typechain-types/
