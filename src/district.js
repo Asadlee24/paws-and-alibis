@@ -1,3 +1,5 @@
+import {strideLength} from './gait.js';
+
 export const bounds = {left:-20, right:20, front:14, back:-34};
 export const entrance = {x:0, z:9.6};
 export const evidenceSites = [
@@ -70,10 +72,13 @@ export function patrol(visitor,time,dt,player) {
   const dx=x-visitor.x,dz=z-visitor.z,len=Math.hypot(dx,dz);
   if(len<.1){visitor.speed=0;return;}
   const increment=Math.min(len,dt*1.2);
-  visitor.speed=increment/dt;
-  visitor.yaw=Math.atan2(dx,-dz);
+  const before={x:visitor.x,z:visitor.z};
+  turnVisitor(visitor,Math.atan2(dx,-dz),dt);
   moveBody(visitor,dx/len*increment,dz/len*increment);
-  visitor.gaits+=increment*7;
+  const moved=distance(before,visitor);
+  visitor.speed=moved/dt;
+  visitor.gaits+=moved*2*Math.PI/strideLength(visitor.speed);
+
 }
 
 export function escapeRoute(visitor) {
@@ -95,7 +100,14 @@ export function advanceEscape(visitor,route,dt) {
   const d=Math.min(len,4.22*dt);
   visitor.x+=dx/len*d;
   visitor.z+=dz/len*d;
-  visitor.yaw=Math.atan2(dx,-dz);
-  visitor.gaits+=d*8;
+  turnVisitor(visitor,Math.atan2(dx,-dz),dt);
+  visitor.gaits+=d*2*Math.PI/strideLength(4.22);
   visitor.speed=4.22;
+}
+
+
+function turnVisitor(visitor,desired,dt) {
+  const delta=Math.atan2(Math.sin(desired-visitor.yaw),Math.cos(desired-visitor.yaw));
+  visitor.yaw+=delta*(1-Math.exp(-15*dt));
+  visitor.lean=(visitor.lean||0)*.8+Math.max(-.035,Math.min(.035,delta*-.025));
 }

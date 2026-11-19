@@ -13,7 +13,7 @@ npm test
 npm run build
 ```
 
-Practice opens without a wallet and stores its answer in the browser. The bazaar has traversable market stalls, side streets and a north gate. Desktop uses WASD or arrow keys, Shift, Space, E, and drag to turn the camera. Phones have a joystick and touch buttons. A software perspective renderer keeps the level playable on browsers without WebGL. Rebuild the original cat sprite sheet with `python3 design/render-cats.py` (Pillow and NumPy).
+Practice opens without a wallet and stores its answer in the browser. The bazaar has traversable market stalls, side streets and a north gate. Desktop uses WASD or arrow keys, Shift, Space, E, and drag to turn the camera. Phones have a joystick, a tap-to-toggle Sprint button, and a dedicated Pounce button during a chase. Practice the chase from the title screen, and use the case notes to see which suspects still match your clues. A software perspective renderer keeps the level playable on browsers without WebGL. Rebuild the sprite sheets with `python3 design/render-cats.py` and `python3 design/render-hero.py` (Pillow and NumPy).
 
 ## Encrypted Sepolia mode
 

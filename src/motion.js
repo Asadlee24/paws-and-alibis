@@ -1,4 +1,5 @@
 import {heightAt,moveBody,distance} from './district.js';
+import {strideLength} from './gait.js';
 
 const smooth=(rate,dt)=>1-Math.exp(-rate*dt);
 export const angleDelta=(target,current)=>Math.atan2(Math.sin(target-current),Math.cos(target-current));
@@ -7,9 +8,9 @@ export const makePlayer=start=>({...start,y:0,yaw:0,vx:0,vz:0,vy:0,air:false,gai
 export function canPounce(player,target) {
   if(!target||player.pounce>0||Math.abs(player.y-target.y)>.75)return false;
   const d=distance(player,target);
-  if(d<.04||d>3.35)return false;
+  if(d>3.45)return false;
   const angle=Math.atan2(target.x-player.x,player.z-target.z);
-  if(d>1.55&&Math.abs(angleDelta(angle,player.yaw))>1.05)return false;
+  if(d>1.85&&Math.abs(angleDelta(angle,player.yaw))>1.37)return false;
   for(let i=1;i<=5;i++){
     if(heightAt(player.x+(target.x-player.x)*i/6,player.z+(target.z-player.z)*i/6,.16)>.48)return false;
   }
@@ -18,9 +19,9 @@ export function canPounce(player,target) {
 
 export function startPounce(player,target) {
   if(!canPounce(player,target))return false;
-  player.pounce=.49;
+  player.pounce=.57;
   player.air=true;
-  player.vy=3.6;
+  player.vy=3.05;
   return true;
 }
 
@@ -34,8 +35,8 @@ export function stepPlayer(player,{x,z,heading,run,jump,target},dt) {
   let dx=0,dz=0;
   if(player.pounce>0&&target){
     const a=Math.atan2(target.x-player.x,player.z-target.z);
-    dx=Math.sin(a)*9.1;
-    dz=-Math.cos(a)*9.1;
+    dx=Math.sin(a)*11.5;
+    dz=-Math.cos(a)*11.5;
     player.pounce=Math.max(0,player.pounce-dt);
   }else if(amount>.045){
     const sin=Math.sin(heading),cos=Math.cos(heading),scale=speed/Math.max(1,Math.hypot(x,z));
@@ -67,7 +68,7 @@ export function stepPlayer(player,{x,z,heading,run,jump,target},dt) {
   if(Math.abs(player.z-oldZ)<Math.abs(player.vz*dt)*.2)player.vz=0;
   const moved=Math.hypot(player.x-oldX,player.z-oldZ);
   player.speed=moved/dt;
-  if(!player.air)player.gaits+=moved*(run?6.6:8.1);
+  if(!player.air)player.gaits+=moved*2*Math.PI/strideLength(player.speed);
   if(!player.air&&heightAt(player.x,player.z,.25)<player.y-.055){
     player.air=true;
     player.vy=0;

@@ -2,11 +2,13 @@ import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {cats} from './case.js';
 import {palette} from './scenery.js';
+import {gaitBlend,pawTrack} from './gait.js';
 
 const PLASTER=new Set(['stone','warm','ivory','clay']);
 const sRGB=new T.Color('#fff');
 const ellipsoid=new T.SphereGeometry(1,16,12);
 const cube=new T.BoxGeometry();
+const up=new T.Vector3(0,1,0);
 const earShape=new T.ConeGeometry(1,1,4);
 
 export function makeWorld(canvas,street,context) {
@@ -242,10 +244,13 @@ function makeCat(c,id) {
   }
   const legs=[];
   for(const x of [-.133,.133])for(const z of [-.245,.25]){
-    const leg=new T.Group();leg.position.set(x,.329,z);body.add(leg);
-    ball(fur,0,-.12,0,.069,.16,.073,leg);
-    ball(paws,0,-.26,-.035,.076,.062,.098,leg);
-    legs.push(leg);
+    legs.push({
+      x,z,front:z<0,
+      thigh:ball(fur,x,.25,z,.063,.12,.072,root),
+      shin:ball(fur,x,.13,z,.044,.11,.053,root),
+      paw:ball(paws,x,.047,z-.023,.061,.045,.084,root),
+      a:new T.Vector3(),b:new T.Vector3(),c:new T.Vector3(),direction:new T.Vector3(),
+    });
   }
   const tail=[];
   let parent=body;
@@ -268,28 +273,45 @@ function makeCat(c,id) {
 function pose(model,p,time){
   const {root,body,head,legs,tail,bag}=model,ph=p.gaits||0;
   const speed=Math.max(0,p.speed||0);
-  const stride=Math.min(speed/4.8,1)*.70;
-  const fast=Math.max(0,Math.min(1,(speed-3.4)/3));
+  const fast=gaitBlend(speed);
   const launch=p.pounce>0;
   root.position.set(p.x,p.y||0,p.z);
   root.rotation.y=-p.yaw;
-  body.position.y=p.pinned?-.21:Math.sin(time*3.2)*.006+Math.abs(Math.sin(ph))*.029*Math.min(speed,2)-(p.impact||0)*.45;
+  body.position.y=p.pinned?-.21:Math.sin(time*3.2)*.006+(1-Math.cos(ph*2))*(.006+.013*fast)*Math.min(speed,1)-(p.impact||0)*.45;
   body.scale.set(launch?.89:1,p.pinned?.68:launch?.84:1,launch?1.24:1+fast*.12*Math.sin(ph));
   body.rotation.z=p.pinned?.67:(p.lean||0);
   body.rotation.x=launch?.11:p.air?-.14:Math.sin(ph*2)*(.017+fast*.045);
   head.rotation.x=launch?-.12:p.pinned?.16:Math.sin(ph)*.032;
   head.rotation.y=speed<.25?Math.sin(time*1.4+(p.id||0))*.14:0;
+  body.updateMatrix();
   legs.forEach((leg,j)=>{
-    const front=j%2===0;
-    const walkPhase=[0,Math.PI,.52*Math.PI,1.52*Math.PI][j];
-    const gallopPhase=[0,2.65,.54,3.18][j];
-    const swing=Math.sin(ph+walkPhase+(gallopPhase-walkPhase)*fast);
-    leg.position.y=.329+(p.air?.04:Math.max(0,swing)*.052)*Math.min(1,speed/2);
-    leg.rotation.x=p.pinned?1.05:launch?(front?-.98:1):p.air?(front?-.50:.70):swing*stride;
+    const {x,z,front,thigh,shin,paw,a,b,c,direction}=leg;
+    const foot=pawTrack(ph,j,speed);
+    a.set(x,.35,z).applyMatrix4(body.matrix);
+    if(p.pinned)c.set(x,.043,z+.12);
+    else if(launch)c.set(x,.124,z+(front?-.24:.20));
+    else if(p.air)c.set(x,.17,z+(front?-.10:.09));
+    else c.set(x,.043+foot.lift,z+foot.z-.035);
+    b.copy(a).lerp(c,.48);
+    b.z+=(front?.079:-.107)*Math.min(1,Math.max(.35,(a.y-c.y)*3.3));
+    b.x+=Math.sign(x)*.014;
+    segment(thigh,a,b,direction);
+    segment(shin,b,c,direction);
+    paw.position.copy(c);
+    paw.rotation.x=launch?-.32:p.air?.23:Math.min(.65,foot.lift*5.4);
   });
   tail.forEach((part,i)=>{
     part.rotation.x=(i===0?-.45:-.11)+.14*Math.sin(time*3.7+i*.65+ph*.22);
     part.rotation.y=.18*Math.sin(time*2.85+i*.42+(p.id||0));
   });
   if(bag)bag.visible=Boolean(p.fleeing);
+}
+
+
+function segment(mesh,start,end,direction) {
+  mesh.position.copy(start).lerp(end,.5);
+  direction.subVectors(end,start);
+  const length=direction.length();
+  mesh.scale.y=length*.62+.017;
+  if(length>.0001)mesh.quaternion.setFromUnitVectors(up,direction.multiplyScalar(1/length));
 }

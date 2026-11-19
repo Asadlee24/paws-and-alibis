@@ -2,3 +2,24 @@
 @media(pointer:coarse),(max-width:760px){.controls{display:none}.touch{display:flex}.prompt{bottom:max(141px,calc(env(safe-area-inset-bottom) + 128px));padding:9px 13px}.prompt kbd{display:none}.objective{top:max(65px,calc(env(safe-area-inset-top) + 50px))}.objective p{font-size:11px}.objective .kicker{font-size:10px}.cover{background:linear-gradient(90deg,#1b1913ec,#211a1360);padding:64px 22px}.cover h2{font-size:clamp(51px,13vw,95px)}nav button{padding:5px 7px;font-size:10px}.toast{top:26%}}
 .proof a{color:#5d4325;text-underline-offset:3px}.deduction{font-weight:700}.prompt:active,.touch-actions button:active{background:#6a4828}.touch-actions button{touch-action:none;user-select:none}
 .deploy-page{min-height:100dvh;overflow:auto;display:grid;place-items:center;padding:25px;background:linear-gradient(105deg,#1b1713ed,#292117b8),url('/art/bazaar.webp') center/cover fixed}.deploy-card{width:min(100%,510px);background:#221d17eb;border:1px solid #d0a77164;border-radius:8px;padding:clamp(22px,6vw,44px);box-shadow:0 22px 75px #130d0888}.deploy-card h1{font:600 clamp(34px,8vw,49px)/.97 Fraunces,Georgia,serif;letter-spacing:-.045em;margin:.2em 0 .55em}.deploy-card p{line-height:1.5;font-size:14px;color:#eddbbd}.deploy-card a{color:#ecc58c;text-underline-offset:3px}.deploy-card .home{display:inline-block;margin-bottom:25px}.deploy-card .launch{display:inline-block;margin:16px 2px 0 0;color:#262017;text-decoration:none}.deploy-card .sub{color:#edd5b4}.deploy-card #message{min-height:1.4em}
+
+#start{display:inline-flex;align-items:center;gap:22px}
+.forward-mark{width:16px;height:11px;position:relative;display:inline-block;flex:none;color:#352414}
+.forward-mark::before{content:"";position:absolute;left:0;right:1px;top:5px;height:1.5px;background:currentColor}
+.forward-mark::after{content:"";position:absolute;right:1px;top:2px;width:6px;height:6px;border-top:1.5px solid;border-right:1.5px solid;transform:rotate(45deg)}
+.mode:focus-visible{outline-offset:1px}
+.action-slot{position:relative;display:grid;place-items:center;width:74px;height:64px}
+.touch-actions{align-items:end;gap:8px}
+.touch-actions button{padding:0;touch-action:none;-webkit-user-select:none;user-select:none}
+.touch-actions #sprint{margin-bottom:2px;width:58px;height:53px}
+.touch-actions #sprint[aria-pressed=true]{background:#6e4825;color:#fff2d2;border-color:#edb76a}
+.touch-actions #jump,.touch-actions #pounce{width:74px;height:64px}
+.touch-actions #pounce{background:#3b2b1eea;border:1px solid #bc8c5b;color:#fff1d0;box-shadow:0 4px 19px #1e150d90;font-weight:700}
+.touch-actions #pounce.ready{background:#efba6f;color:#2d2115;border-color:#ffe2a3;box-shadow:0 0 19px #edb76a52}
+.touch-actions #pounce.queued{background:#6e4825;border-color:#efba6f}
+.chase-result dl{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin:14px 0}
+.chase-result dl div{background:#b4894f22;padding:8px 10px;border-radius:3px}
+.chase-result dt{color:#77502e;font-size:11px}.chase-result dd{margin:3px 0 0;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.suspect-list .match{background:#c7a35d40;padding:3px 5px;border-radius:3px}
+.suspect-list .eliminated{opacity:.52}
+@media(pointer:coarse),(max-width:760px){.chasing .prompt{display:none}.touch-actions{pointer-events:none}.touch-actions button{pointer-events:auto}.cover-inner{position:relative;z-index:1}}

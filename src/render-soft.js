@@ -185,7 +185,7 @@ export function makeSoftWorld(canvas,street) {
         ctx.fillStyle='rgba(31,19,13,.24)';
         ctx.beginPath();ctx.ellipse(floor[0],floor[1],size*.39,size*.091,0,0,Math.PI*2);ctx.fill();
         if(isReady(image)){
-          const g=cat.speed>.14&&cat.y<.24 ? Math.floor((cat.gaits||0)*1.12)%6:0;
+          const g=cat.speed>.14&&cat.y<.24 ? Math.floor((cat.gaits||0)*6/(2*Math.PI))%6:0;
           const id=hero?0:cat.id;
           const side=Math.sin(cat.yaw-state.heading);
           if(hero){

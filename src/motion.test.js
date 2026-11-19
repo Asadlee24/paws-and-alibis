@@ -45,3 +45,16 @@ test('pounce reaches a nearby moving suspect and cannot be used through a wall',
   const screen=makePlayer({x:3.6,z:-4.8});
   assert.equal(canPounce(screen,{x:3.6,z:-7.6,y:0}),false);
 });
+
+test('pounce from the edge of range catches a fleeing suspect',()=>{
+  const actor=makePlayer({x:0,z:1});
+  const target={x:0,z:-2.41,y:0};
+  assert.ok(startPounce(actor,target));
+  let caught=false;
+  for(let i=0;i<35;i++){
+    step(actor,{target,z:1,run:true});
+    moveBody(target,0,-4.22/60);
+    if(distance(actor,target)<.92&&Math.abs(actor.y-target.y)<.78){caught=true;break;}
+  }
+  assert.ok(caught);
+});

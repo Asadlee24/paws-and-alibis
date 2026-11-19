@@ -9,9 +9,11 @@ import {entrance,evidenceSites,newVisitors,patrol,distance,escapeRoute,advanceEs
 import {makeStreet} from './scenery.js';
 import {follow,projection} from './camera.js';
 import {makePlayer,stepPlayer,startPounce,canPounce} from './motion.js';
+import {POUNCE_BUFFER,consumePounce} from './chase-input.js';
 import {makeSoftWorld} from './render-soft.js';
 
 const $=id=>document.getElementById(id);
+const touchMode=matchMedia('(pointer:coarse),(max-width:760px)');
 let canvas=$('world');
 const street=makeStreet();
 let renderer;
@@ -31,14 +33,32 @@ function useSoftware(){
 }
 const keys=new Set();
 let game=makePractice(),verifiedCase=false,verdict=null,view,heading=0,pitch=0,npcs,player,clues,route,leader;
-let stage='cover',near=null,time=0,previous=0,busy=false,stamina=1,chaseLead=0,sprintTouch=false,jumpQueued=false;
+let stage='cover',near=null,time=0,previous=0,busy=false,stamina=1,chaseLead=0,jumpQueued=false;
 let jx=0,jy=0,audio,muted=true,toastTimer,shake=0,cooldown=0,pinTime=0,stepClock=0,airborne=false;
 const modal=$('panel');
+const gameRoot=$('game');
+const pounceButton=$('pounce');
+let pounceRequest=0,sprintLock=false,training=false,chaseTime=0,attempts=0;
+function resetInput(){
+  keys.clear();jx=0;jy=0;pad=null;jumpQueued=false;pounceRequest=0;
+  $('stick').style.setProperty('--jx','0px');
+  $('stick').style.setProperty('--jy','0px');
+}
+function toggleSprint(enabled){
+  sprintLock=enabled;
+  $('sprint').setAttribute('aria-pressed',String(enabled));
+}
+function chaseControls(active){
+  gameRoot.classList.toggle('chasing',active);
+  pounceButton.hidden=!active;
+  $('jump').hidden=active;
+}
+
 const prefs=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const newHero=()=>makePlayer(entrance);
 function resetWorld(){
   player=newHero();npcs=newVisitors();clues=new Map();route=[];leader=null;
-  heading=0;pitch=0;stamina=1;time=0;near=null;cooldown=0;pinTime=0;stepClock=0;airborne=false;verdict=null;view=follow(player,heading,pitch);
+  heading=0;pitch=0;stamina=1;time=0;near=null;cooldown=0;pinTime=0;stepClock=0;airborne=false;verdict=null;pounceRequest=0;chaseTime=0;attempts=0;toggleSprint(false);chaseControls(false);view=follow(player,heading,pitch);
 }
 resetWorld();
 $('game').classList.add('cover-visible');
@@ -53,7 +73,7 @@ function objective(){
   if(stage==='hunt'){
     label(verifiedCase?'SEPOLIA · INVESTIGATION':'CASE 01 · INVESTIGATION',clues.size===3?'Find your suspect':'Investigate the bazaar',clues.size===3?'Match the scarf, tail tip and paws.':clues.size+' / 3 clues · Follow the marker to inspect evidence.');
   }else if(stage==='chase'){
-    label('CASE 01 · PURSUIT','Catch the thief','Sprint or cut through the lanes. Get close and pounce.');
+    label(training?'PRACTICE · PURSUIT':'CASE 01 · PURSUIT','Catch the thief','Close the gap and pounce when the button lights up.');
   }else if(stage==='capture'){
     label('THIEF CAUGHT','Biryani recovered','');
   }else if(stage==='complete'){
@@ -62,6 +82,7 @@ function objective(){
     label('THIEF ESCAPED','Try the chase again','Open Case notes to retry.');
   }
   $('stamina').hidden=stage!=='chase';
+  chaseControls(stage==='chase');
 }
 function tell(text){
   clearTimeout(toastTimer);$('toast').textContent=text;$('toast').hidden=false;
@@ -93,6 +114,7 @@ async function start(useChain=false){
   const original=button.innerHTML;
   try{
     const wantsChain=useChain||(stage!=='cover'&&verifiedCase);
+    training=false;
     if(wantsChain && !verifiedCase){
       button.textContent='Connecting to Sepolia…';
       const {makeVerified}=await import('./sepolia.js');game=await makeVerified(feature);
@@ -108,19 +130,30 @@ async function start(useChain=false){
 }
 $('start').addEventListener('click',()=>start());
 $('chain').addEventListener('click',()=>start(true));
+$('practice').addEventListener('click',()=>{
+  if(busy)return;
+  verifiedCase=false;training=true;resetWorld();
+  leader=npcs[0];
+  $('cover').hidden=true;gameRoot.classList.remove('cover-visible');
+  retryChase();
+});
+
 
 function traits(id){
   return evidenceSites.map((s,i)=>[s.trait,s.values[(id>>i)&1]]);
 }
 function notes(){
   const visible=Array.from(clues.entries()).sort(([a],[b])=>a-b).map(([i,bit])=>'<li>'+evidenceSites[i].line[bit]+'</li>').join('');
-  const roster=clues.size>=1?'<div class="suspect-list">'+cats.map((cat,id)=>'<div><b>'+cat.name+'</b><br><span>'+traits(id).map(([,v])=>v).join(' · ')+'</span></div>').join('')+'</div>':'';
+  const roster=clues.size>=1?'<div class="suspect-list">'+cats.map((cat,id)=>{
+    const match=Array.from(clues).every(([i,bit])=>((id>>i)&1)===bit);
+    return '<div class="'+(match?'match':'eliminated')+'"><b>'+cat.name+'</b><br><span>'+traits(id).map(([label,v])=>label+' '+v).join(' · ')+'</span></div>';
+  }).join('')+'</div>':'';
   show('<div class="kicker">DETECTIVE’S NOTEBOOK</div><h2>Case notes</h2>'+(visible?'<ul>'+visible+'</ul>':'<p>No evidence yet. Check the stalls and alley.</p>')+roster+(stage==='escaped'||stage==='complete'?'<button class="primary" id="again">New case</button>':''));
   $('again')?.addEventListener('click',()=>{modal.close();start();});
 }
 function show(html){$('panel-body').innerHTML=html;if(!modal.open)modal.showModal();}
 $('notebook').addEventListener('click',notes);
-$('help').addEventListener('click',()=>show('<div class="kicker">CONTROLS</div><h2>On the trail</h2><p><b>Desktop:</b> WASD or arrows to move, drag to look, Shift to sprint, Space to jump and E to interact.</p><p><b>Phone:</b> Use the left stick, drag the scene to look and tap the action buttons.</p><p>Read the clues, question cats and pounce when you catch up to the thief.</p>'));
+$('help').addEventListener('click',()=>show('<div class="kicker">CONTROLS</div><h2>On the trail</h2><p><b>Desktop:</b> WASD or arrows to move, drag to look, Shift to sprint, Space to jump and E to interact.</p><p><b>Phone:</b> Use the left stick, drag the scene to look, and tap Sprint once to toggle it. Pounce has its own button during a chase.</p><p>Read the clues, question cats and pounce when you catch up to the thief.</p>'));
 function ask(id){
   const cat=cats[id];
   show('<div class="kicker">SUSPECT</div><h2>'+cat.name+'</h2><ul>'+traits(id).map(([key,value])=>'<li>'+key+': <b>'+value+'</b></li>').join('')+'</ul><button class="primary" id="accuse">Accuse '+cat.name+'</button><button class="sub" id="let-go">Keep looking</button>');
@@ -156,28 +189,36 @@ function beginChase(result){
       if(patch)Object.assign(leader,patch);
     }
     leader.fleeing=true;leader.speed=0;route=escapeRoute(leader);
-    stage='chase';chaseLead=1.1;shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
+    stage='chase';chaseTime=0;attempts=1;pounceRequest=0;chaseLead=1.1;shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
 }
 function finish(won){
   stage=won?'complete':'escaped';
   leader.speed=0;leader.fleeing=!won;
   objective();
   if(won){ping(523,.22);ping(659,.23,.05,.10);ping(784,.31,.05,.19);}
-  const proof=won&&verdict?.receipt ? '<p class="proof"><a target="_blank" rel="noopener noreferrer" href="'+verdict.receipt+'">View investigation proof on Sepolia ↗</a></p>' : '';
+  const proof=won&&verdict?.receipt ? '<p class="proof"><a target="_blank" rel="noopener noreferrer" href="'+verdict.receipt+'">View investigation proof on Sepolia</a></p>' : '';
   const deduction=won&&verdict ? '<p class="deduction">'+(verdict.correct?'Correct accusation':'Wrong accusation')+' · '+verdict.score+' investigation points</p>' : '';
-  show('<div class="kicker">'+(won?'CASE CLOSED':'CHASE LOST')+'</div><h2>'+(won?'Dinner is saved.':'The thief got away.')+'</h2><p>'+(won?'You caught '+cats[leader.id].name+' after finding '+clues.size+' '+(clues.size===1?'clue':'clues')+'.':'Cut through the alleys and save some sprint for the last stretch.')+'</p>'+deduction+proof+'<button class="primary" id="again">'+(won?'New case':'Retry chase')+'</button>');
+  const stats=won?'<dl><div><dt>Chase time</dt><dd>'+chaseTime.toFixed(1)+'s</dd></div><div><dt>Attempts</dt><dd>'+attempts+'</dd></div></dl>':'';
+  const next=training&&won?'Play the case':won?'New case':'Retry chase';
+  show('<div class="chase-result"><div class="kicker">'+(won?'CASE CLOSED':'CHASE LOST')+'</div><h2>'+(won?'Dinner is saved.':'The thief got away.')+'</h2><p>'+(won?'You caught '+cats[leader.id].name+'.':'Cut through the alleys and save some sprint for the last stretch.')+'</p>'+stats+deduction+proof+'<button class="primary" id="again">'+next+'</button></div>');
   $('again').addEventListener('click',()=>{
     modal.close();
     if(won)start();
-    else{
-      const first=escapeRoute({...entrance,x:0,z:5.7});
-      Object.assign(player,newHero());Object.assign(leader,{x:0,z:5.7,y:0,fleeing:true,pinned:false,speed:0});route=first;heading=0;view=follow(player,0,0);stamina=1;cooldown=0;chaseLead=1.35;stage='chase';objective();
-    }
+    else retryChase();
   });
 }
+function retryChase(){
+  const spawn={x:0,z:training?4.15:5.7,y:0};
+  Object.assign(player,newHero());
+  Object.assign(leader,{...spawn,pinned:false,fleeing:true,speed:0});
+  route=escapeRoute(spawn);heading=0;pitch=0;view=follow(player,0,0);
+  resetInput();toggleSprint(false);stamina=1;cooldown=0;chaseTime=0;attempts++;
+  chaseLead=training?.85:1.35;stage='chase';objective();
+}
 async function interact(){
-  if(busy||!near||modal.open)return;
-  if(near.type==='chase'){pounce();return;}
+  if(busy||modal.open)return;
+  if(stage==='chase'){requestPounce();return;}
+  if(!near)return;
   if(near.type==='cat'){ask(near.id);return;}
   const id=near.id;
   busy=true;$('act').disabled=true;
@@ -191,30 +232,38 @@ function pounce(){
   if(stage!=='chase'||cooldown>0||!startPounce(player,leader))return false;
   cooldown=.66;ping(145,.2,.07);return true;
 }
+function requestPounce(){
+  if(stage!=='chase'||modal.open)return;
+  if(pounce()){pounceRequest=0;return;}
+  if(player.pounce<=0)pounceRequest=POUNCE_BUFFER;
+}
 function capture(){
-  stage='capture';pinTime=.87;player.pounce=0;player.speed=0;player.vx=0;player.vz=0;player.vy=0;player.y=leader.y;player.air=false;
+  stage='capture';pinTime=.87;pounceRequest=0;player.pounce=0;player.speed=0;player.vx=0;player.vz=0;player.vy=0;player.y=leader.y;player.air=false;
   leader.speed=0;leader.pinned=true;shake=.115;objective();footstep(true);
+  if(!prefs)navigator.vibrate?.(40);
 }
 $('act').addEventListener('click',interact);
 const gameKeys=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','ShiftLeft','ShiftRight','Space','KeyE','KeyQ']);
 document.addEventListener('keydown',e=>{
   if(!gameKeys.has(e.code)||modal.open||stage==='cover'||e.metaKey||e.ctrlKey)return;
   e.preventDefault();keys.add(e.code);
-  if(!e.repeat && e.code==='Space'&&!pounce())jumpQueued=true;
+  if(!e.repeat && e.code==='Space'){if(stage==='chase')requestPounce();else jumpQueued=true;}
   if(!e.repeat && e.code==='KeyE')interact();
   if(!e.repeat && e.code==='KeyQ')notes();
 });
 document.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>{keys.clear();jx=0;jy=0;sprintTouch=false;});
+window.addEventListener('blur',resetInput);
 const stick=$('stick');
 let pad=null;
 function stickMove(e){
   if(e.pointerId!==pad?.id)return;
-  const dx=e.clientX-pad.x,dy=e.clientY-pad.y,r=Math.hypot(dx,dy),max=34;
-  jx=dx/Math.max(r,max);jy=-dy/Math.max(r,max);
+  const dx=e.clientX-pad.x,dy=e.clientY-pad.y,r=Math.hypot(dx,dy),max=36;
+  const power=Math.min(1,Math.max(0,(r-4)/(max-4)));
+  jx=r?dx/r*power:0;jy=r?-dy/r*power:0;
   stick.style.setProperty('--jx',jx*max+'px');stick.style.setProperty('--jy',-jy*max+'px');
 }
 stick.addEventListener('pointerdown',e=>{
+  if(pad||e.button>0)return;
   const box=stick.getBoundingClientRect();pad={id:e.pointerId,x:box.x+box.width/2,y:box.y+box.height/2};
   stick.setPointerCapture(e.pointerId);stickMove(e);
 });
@@ -223,13 +272,22 @@ for(const type of ['pointerup','pointercancel','lostpointercapture'])stick.addEv
   if(e.pointerId!==pad?.id)return;pad=null;jx=0;jy=0;
   stick.style.setProperty('--jx','0px');stick.style.setProperty('--jy','0px');
 });
-$('sprint').addEventListener('pointerdown',e=>{sprintTouch=true;$('sprint').setPointerCapture(e.pointerId);});
-for(const type of ['pointerup','pointercancel','lostpointercapture'])$('sprint').addEventListener(type,()=>sprintTouch=false);
-$('jump').addEventListener('pointerdown',()=>{if(!pounce())jumpQueued=true;});
+function onPress(button,action){
+  button.addEventListener('pointerdown',e=>{
+    if(e.button!==0)return;
+    e.preventDefault();
+    action();
+  });
+  // Keyboard and assistive clicks have no pointer event.
+  button.addEventListener('click',e=>{if(e.detail===0)action();});
+}
+onPress($('sprint'),()=>toggleSprint(!sprintLock));
+onPress($('jump'),()=>{if(stage==='hunt')jumpQueued=true;});
+onPress(pounceButton,requestPounce);
 function bindCamera(){
   let drag=null;
   canvas.addEventListener('pointerdown',e=>{
-    if(stage==='cover')return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);
+    if(stage==='cover'||drag||e.button>0)return;drag={id:e.pointerId,x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointermove',e=>{
     if(drag?.id!==e.pointerId)return;
@@ -240,7 +298,7 @@ function bindCamera(){
   for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,e=>{if(drag?.id===e.pointerId)drag=null;});
 }
 bindCamera();
-modal.addEventListener('close',()=>{keys.clear();jx=0;jy=0;jumpQueued=false;sprintTouch=false;});
+modal.addEventListener('close',()=>{if(!modal.open)resetInput();});
 const key=(...codes)=>codes.some(c=>keys.has(c))?1:0;
 
 function update(dt){
@@ -248,11 +306,15 @@ function update(dt){
   const x=key('KeyD','ArrowRight')-key('KeyA','ArrowLeft')+jx;
   const z=key('KeyW','ArrowUp')-key('KeyS','ArrowDown')+jy;
   cooldown=Math.max(0,cooldown-dt);
-  const running=Math.hypot(x,z)>.07&&(sprintTouch||key('ShiftLeft','ShiftRight'))&&stamina>.07;
+  const running=Math.hypot(x,z)>.07&&(sprintLock||key('ShiftLeft','ShiftRight'))&&stamina>.07;
   if(running)stamina=Math.max(0,stamina-dt*.145);
   else stamina=Math.min(1,stamina+dt*.30);
   $('stamina').firstElementChild.style.transform='scaleX('+stamina+')';
   const chasing=stage==='chase';
+  if(chasing&&pounceRequest>0){
+    const request=consumePounce(pounceRequest,dt,pounce);
+    pounceRequest=request.remaining;
+  }
   if(stage==='capture'){
     pinTime-=dt;
     if(pinTime<=0){finish(true);return;}
@@ -267,9 +329,9 @@ function update(dt){
     airborne=player.air;
     for(const npc of npcs){if(npc!==leader)patrol(npc,time,dt,player);}
     if(chasing){
-      chaseLead-=dt;
+      chaseTime+=dt;chaseLead-=dt;
       if(chaseLead<=0)advanceEscape(leader,route,dt);
-      if(pouncing&&distance(player,leader)<.83&&Math.abs(player.y-leader.y)<.71){capture();}
+      if(pouncing&&distance(player,leader)<.92&&Math.abs(player.y-leader.y)<.78){capture();}
       else if(!route.length){finish(false);return;}
     }
   }
@@ -290,8 +352,9 @@ function indicators(){
     marker=leader;near=cooldown<=0&&canPounce(player,leader)?{type:'chase'}:null;
   }else if(marker&&distance(marker,player)<2.25)near=marker;
   else near=close?{type:'cat',id:close.id}:null;
-  $('act').hidden=!near;
-  $('jump').textContent=near?.type==='chase'?'Pounce':'Jump';
+  $('act').hidden=!near||(touchMode.matches&&stage==='chase');
+  pounceButton.classList.toggle('ready',near?.type==='chase');
+  pounceButton.classList.toggle('queued',pounceRequest>0);
   if(near)$('act').lastElementChild.textContent=near.type==='evidence'?'Inspect '+near.name:near.type==='chase'?'Pounce':'Question '+cats[near.id].name;
   const w=canvas.clientWidth,h=canvas.clientHeight,p=projection(view,w,h);
   $('waypoint').hidden=!marker;
