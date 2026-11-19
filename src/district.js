@@ -77,12 +77,14 @@ export function patrol(visitor,time,dt,player) {
 }
 
 export function escapeRoute(visitor) {
-  const innerX=visitor.x<0 ? -4.2 : 4.9;
-  return [
-    {x:innerX,z:visitor.z}, {x:innerX,z:-7.06}, {x:-5.6,z:-7.03},
-    {x:-18.65,z:-6.8}, {x:-18.65,z:-19.95}, {x:-5.6,z:-19.95},
-    {x:-2.45,z:-22.9}, {x:-1.15,z:-29.9}, {x:0,z:-33.2},
-  ].filter((p,i,all)=>distance(p,i?all[i-1]:visitor)>.3);
+  const innerX=visitor.x < -2 ? -4.35 : visitor.x > 1.5 ? 5.35 : 0;
+  const first={x:innerX,z:visitor.z};
+  const north=[{x:-1.1,z:-27.5},{x:-1.15,z:-29.9},{x:0,z:-33.2}];
+  if(visitor.z < -21) return [first,...north];
+  const alley=visitor.z>=-6.9?-6.85:-19.95;
+  const detour=alley>-10 ? [{x:-18.65,z:alley},{x:-18.65,z:-19.95},{x:-5.6,z:-19.95}] : [];
+  return [first,{x:innerX,z:alley},{x:-5.6,z:alley},...detour,{x:-3.75,z:-22.2},...north]
+    .filter((p,i,all)=>distance(p,i?all[i-1]:visitor)>.3);
 }
 
 export function advanceEscape(visitor,route,dt) {
@@ -90,10 +92,10 @@ export function advanceEscape(visitor,route,dt) {
   if(!next)return;
   const dx=next.x-visitor.x,dz=next.z-visitor.z,len=Math.hypot(dx,dz);
   if(len<.24){route.shift();return;}
-  const d=Math.min(len,4.55*dt);
+  const d=Math.min(len,4.22*dt);
   visitor.x+=dx/len*d;
   visitor.z+=dz/len*d;
   visitor.yaw=Math.atan2(dx,-dz);
   visitor.gaits+=d*8;
-  visitor.speed=4.55;
+  visitor.speed=4.22;
 }

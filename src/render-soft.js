@@ -19,7 +19,7 @@ function terrain(street) {
       if(p.m==='cobble')continue;
       const a=w/2,b=h/2,c=d/2;
       const big=w*h>10 || d*h>10;
-      const surface=big&&['stone','warm','clay','ivory'].includes(p.m)?'stone':null;
+      const surface=big&&['stone','warm','clay','ivory'].includes(p.m)?'stone':p.m==='rug'?'rug':null;
       quad(p,[[-a,b,c],[a,b,c],[a,-b,c],[-a,-b,c]],.97,surface);
       quad(p,[[a,b,-c],[-a,b,-c],[-a,-b,-c],[a,-b,-c]],.66,surface);
       quad(p,[[a,b,c],[a,b,-c],[a,-b,-c],[a,-b,c]],.69,surface);
@@ -90,7 +90,7 @@ export function makeSoftWorld(canvas,street) {
   const ctx=canvas.getContext('2d',{alpha:false});
   if(!ctx)throw new Error('This browser could not start the 3D view.');
   const faces=terrain(street),imgs={};
-  for(const name of ['cobble','stone','wood','cat-frames','hero-frames']){
+  for(const name of ['cobble','stone','wood','rug','cat-frames','hero-frames']){
     const image=new Image();
     image.src='/art/'+name+'.webp';
     imgs[name]=image;
@@ -108,12 +108,18 @@ export function makeSoftWorld(canvas,street) {
     const [a,b,c,d]=pts;
     const area=Math.abs((b[0]-a[0])*(d[1]-a[1])-(d[0]-a[0])*(b[1]-a[1]));
     if(area<40)return;
-    ctx.save();
-    ctx.globalAlpha=opacity;
-    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.lineTo(c[0],c[1]);ctx.lineTo(d[0],d[1]);ctx.closePath();ctx.clip();
-    ctx.transform((b[0]-a[0])/size,(b[1]-a[1])/size,(d[0]-a[0])/size,(d[1]-a[1])/size,a[0],a[1]);
-    ctx.drawImage(im,tileX,tileY,size,size,0,0,size*1.32,size*1.32);
-    ctx.restore();
+    const drawTriangle=(p,q,r,flip)=>{
+      ctx.save();
+      ctx.globalAlpha=opacity;
+      ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);ctx.lineTo(r[0],r[1]);ctx.closePath();ctx.clip();
+      const sign=flip?-1:1;
+      ctx.transform(sign*(q[0]-p[0])/size,sign*(q[1]-p[1])/size,
+        sign*(r[0]-p[0])/size,sign*(r[1]-p[1])/size,p[0],p[1]);
+      ctx.drawImage(im,tileX,tileY,size,size,flip?-size:0,flip?-size:0,size,size);
+      ctx.restore();
+    };
+    drawTriangle(a,b,d,false);
+    drawTriangle(c,d,b,true);
   }
   function draw(state){
     const now=performance.now();
@@ -168,7 +174,7 @@ export function makeSoftWorld(canvas,street) {
     for(const o of objects){
       if(o.face){
         fill(o.pts,shaded(o.face.color,o.face.shade,o.depth));
-        if(o.face.texture&&o.depth<25)tile(imgs[o.face.texture],o.pts,Math.max(.1,.46-o.depth*.012));
+        if(o.face.texture&&o.depth<29)tile(imgs[o.face.texture],o.pts,Math.max(.12,.64-o.depth*.017));
       } else if(o.cat){
         const {cat,point:[x,y,z]}=o;
         const size=proj.lens*1.14/z;

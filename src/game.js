@@ -30,7 +30,7 @@ function useSoftware(){
 }
 const keys=new Set();
 let game=makePractice(),backendReady=false,view,heading=0,pitch=0,npcs,player,clues,route,leader;
-let stage='cover',near=null,time=0,previous=0,busy=false,stamina=1,sprintTouch=false,jumpQueued=false;
+let stage='cover',near=null,time=0,previous=0,busy=false,stamina=1,chaseLead=0,sprintTouch=false,jumpQueued=false;
 let jx=0,jy=0,audio,muted=true,toastTimer,shake=0;
 const modal=$('panel');
 const prefs=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -124,9 +124,9 @@ async function accuse(id){
       leader.x=Math.max(-5,Math.min(5,player.x));
       leader.z=z;
     }
-    if(distance(player,leader)<3){leader.z=Math.max(-31,leader.z-3.5);}
+    if(distance(player,leader)<2.7){const prepared=escapeRoute(leader)[0]; if(prepared&&distance(player,prepared)>2.7){leader.x=prepared.x;leader.z=prepared.z;}else leader.z=Math.max(-30,leader.z-3.05);}
     leader.fleeing=true;route=escapeRoute(leader);
-    stage='chase';shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
+    stage='chase';chaseLead=1.1;shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
   }catch(e){
     tell(e.shortMessage||e.message||'Could not check that accusation.');
     if($('accuse')){$('accuse').disabled=false;$('accuse').textContent='Retry accusation';}
@@ -142,8 +142,8 @@ function finish(won){
     modal.close();
     if(won)start();
     else{
-      const first=escapeRoute({...entrance,x:0,z:3});
-      Object.assign(player,newHero());Object.assign(leader,{x:0,z:3,y:0,fleeing:true});route=first;heading=0;stamina=1;stage='chase';objective();
+      const first=escapeRoute({...entrance,x:0,z:5.7});
+      Object.assign(player,newHero());Object.assign(leader,{x:0,z:5.7,y:0,fleeing:true});route=first;heading=0;stamina=1;chaseLead=1.35;stage='chase';objective();
     }
   });
 }
@@ -239,7 +239,8 @@ function update(dt){
   }else player.speed=0;
   for(const npc of npcs){if(npc!==leader)patrol(npc,time,dt,player);}
   if(stage==='chase'){
-    advanceEscape(leader,route,dt);
+    chaseLead-=dt;
+    if(chaseLead<=0)advanceEscape(leader,route,dt);
     if(!route.length){finish(false);return;}
   }
   const next=follow(player,heading,pitch);
