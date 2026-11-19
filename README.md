@@ -13,7 +13,7 @@ npm test
 npm run build
 ```
 
-Practice opens without a wallet and stores its answer in the browser. The original bazaar background and procedural Three.js cats are local assets. Browsers without WebGL use illustrated markers.
+Practice opens without a wallet and stores its answer in the browser. The original bazaar background and procedural Three.js cats are local assets. Browsers without WebGL use animated, prerendered 3D cat sprites. Rebuild the fallback art with `python3 design/render-cats.py` (Pillow and NumPy).
 
 ## Encrypted Sepolia mode
 

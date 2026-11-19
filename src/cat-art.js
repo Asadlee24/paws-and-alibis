@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {cats} from './case.js';
 
-export function portrait(cat, full = false) {
-  const eyes = full ? '<path fill="#191a15" d="M20 38q2-4 6 0l-1 3h-4zm19 0q3-4 6 0l-1 3h-4z"/>' : '<path fill="#27271e" d="M24 35h2v7h-2zm15 0h2v7h-2z"/>';
+export function portrait(cat) {
+  const eyes = '<path fill="#27271e" d="M24 35h2v7h-2zm15 0h2v7h-2z"/>';
   return `<svg viewBox="0 0 64 64" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
   <path fill="#bd9b62" opacity=".27" d="M10 53Q3 29 20 19q20-13 34 9 7 11-1 27Z"/>
   <path fill="${cat.dark}" d="M16 30 13 9q0-3 4-1l15 14h3L48 8q4-3 4 1l-2 23q7 7 4 15-3 10-21 12-19-1-24-11-4-9 7-18Z"/>

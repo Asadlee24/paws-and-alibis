@@ -40,7 +40,7 @@ for (const [id,cat] of cats.entries()) {
   marker.className='marker';
   marker.type='button';
   marker.setAttribute('aria-label',`Track ${cat.name}`);
-  marker.innerHTML=`<span aria-hidden="true">${cat.name}</span><i class="fallback-cat">${portrait(cat,true)}</i>`;
+  marker.innerHTML=`<span aria-hidden="true">${cat.name}</span><i class="fallback-cat" aria-hidden="true"></i>`;
   marker.addEventListener('click',()=>select(id));
   $('markers').append(marker);
   markers.push(marker);
@@ -149,6 +149,12 @@ function draw(now) {
     markers[i].style.left=`${p.x*100}%`;
     markers[i].style.top=`${p.y*100}%`;
     markers[i].style.zIndex=String(Math.round(p.y*16));
+    const frame=state.playing && p.moving ? (Math.floor(state.time*10)+i)%6 : 0;
+    const offset=state.reveal && state.result.culprit===i ? 6 : 0;
+    markers[i].style.setProperty('--frame',`${(frame+offset)*100/11}%`);
+    markers[i].style.setProperty('--coat',`${i*100/7}%`);
+    markers[i].style.setProperty('--face',p.direction);
+    markers[i].style.setProperty('--depth',.7+p.y*.3);
   });
   renderModels?.(positions,state.time,state.playing,state.reveal ? state.result.culprit : null);
   requestAnimationFrame(draw);
@@ -200,6 +206,8 @@ async function newCase() {
   state={time:0,playing:false,selected:null,clues:new Map(),activeClue:null,busy:state.busy,result:null,reveal:false};
   setPlaying(false);
   $('intro').hidden=false;
+  $('event').hidden=true;
+  draw.last=null;
   goTo(0);
   $('footage-note').textContent='Select a cat in the footage to track it.';
   $('session-label').textContent=verified ? 'Sepolia case' : 'Practice case';
