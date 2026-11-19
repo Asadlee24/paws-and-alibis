@@ -1,5 +1,7 @@
 # Paws & Alibis
 
+> This project is not audited, endorsed or operated by Zama. Use at your own risk.
+
 Eight cats pass through a Peshawar-inspired bazaar. One took the biryani. Explore the market in third person, collect three clues, and question the cats. When the thief runs, sprint through the alleys and pounce when you catch up. The original footage mini-game remains available at `/footage.html`.
 
 ## Play locally

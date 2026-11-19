@@ -19,4 +19,4 @@ A case opens on Sepolia with a randomly chosen encrypted culprit. Each evidence 
 - **1:10–2:10.** Track a suspect, lock the accusation, open the proof link and show the actual settlement transaction. Cut confirmed wallet waits in the recording.
 - **2:10–3:00.** Play the chase through to capture. Show the result and clarify that the case is verified onchain while movement and timing run in the browser.
 
-Record your own pitch. Publish an X thread or article with the real demo link, repository, contract address and a sample proof transaction. Then submit through the [official Zama form](https://forms.zama.org/zama-developer-program-mainnet-season-5-confidential-gaming).
+Record your own pitch. Use [the submission draft](zama-submission.md) for the spoken script and X thread. Publish the thread with the verified demo link, repository, contract address and a sample proof transaction. Then submit through the [official Zama form](https://forms.zama.org/zama-developer-program-mainnet-season-5-confidential-gaming).
