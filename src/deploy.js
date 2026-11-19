@@ -5,6 +5,7 @@ import '@fontsource/fraunces/latin-600.css';
 import './game.css';
 import {ContractFactory,formatEther,keccak256} from 'ethers';
 import {connectSepolia} from './wallet.js';
+import {rememberContract} from './case-config.js';
 
 const $=id=>document.getElementById(id);
 let provider, factory, deployment, submitter;
@@ -41,6 +42,7 @@ $('deploy').addEventListener('click',async()=>{
     await deployment.waitForDeployment();
     const address=await deployment.getAddress();
     if(keccak256(await provider.getCode(address))!==submitter)throw Error('The deployed contract did not match this version of Paws & Alibis.');
+    rememberContract(address);
     $('game-link').href='/?caseContract='+address;
     $('done').hidden=false;
     $('estimate').hidden=true;

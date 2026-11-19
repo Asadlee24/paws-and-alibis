@@ -1,5 +1,6 @@
 const {ethers,fhevm}=require('hardhat');
 const assert=require('node:assert/strict');
+const {FhevmType}=require('@fhevm/hardhat-plugin');
 
 const revertsAs=(game,name)=>error=>error.data?.slice(0,10)===game.interface.getError(name).selector;
 
@@ -19,8 +20,9 @@ describe('BazaarCase',()=>{
     for(let clue=0;clue<3;clue++){
       await (await game.connect(player).openEvidence(1,clue)).wait();
       const handle=await game.evidenceHandle(1,clue);
-      const result=await fhevm.publicDecrypt([handle]);
-      const bit=Number(result.clearValues[handle] ?? result.clearValues[handle.toLowerCase()]);
+      await assert.rejects(fhevm.publicDecrypt([handle]));
+      await assert.rejects(fhevm.userDecryptEuint(FhevmType.euint8,handle,game,other));
+      const bit=Number(await fhevm.userDecryptEuint(FhevmType.euint8,handle,game,player));
       assert.ok(bit===0||bit===1);
       guess|=bit<<clue;
     }
@@ -43,6 +45,7 @@ describe('BazaarCase',()=>{
   });
 
   it('proves a wrong guess without leaking the full answer before accusation',async()=>{
+    const [player]=await ethers.getSigners();
     const game=await ethers.deployContract('BazaarCase');
     await game.waitForDeployment();
     await (await game.startCase()).wait();
@@ -51,8 +54,7 @@ describe('BazaarCase',()=>{
     for(let clue=0;clue<3;clue++){
       await (await game.openEvidence(1,clue)).wait();
       const handle=await game.evidenceHandle(1,clue);
-      const {clearValues}=await fhevm.publicDecrypt([handle]);
-      answer|=Number(clearValues[handle])<<clue;
+      answer|=Number(await fhevm.userDecryptEuint(FhevmType.euint8,handle,game,player))<<clue;
     }
     await (await game.submitGuess(1,answer^1)).wait();
     await assert.rejects(game.openEvidence(1,0),revertsAs(game,'CaseClosed'));

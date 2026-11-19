@@ -10,6 +10,8 @@ import {makeStreet} from './scenery.js';
 import {follow,projection} from './camera.js';
 import {makePlayer,stepPlayer,startPounce,canPounce} from './motion.js';
 import {POUNCE_BUFFER,consumePounce} from './chase-input.js';
+import {caseContract,rememberContract,validContract} from './case-config.js';
+import {makeMinimap} from './minimap.js';
 import {makeSoftWorld} from './render-soft.js';
 
 const $=id=>document.getElementById(id);
@@ -62,9 +64,27 @@ function resetWorld(){
 }
 resetWorld();
 $('game').classList.add('cover-visible');
-const contractParam=new URL(location.href).searchParams.get('caseContract');
-const feature=/^0x[\da-f]{40}$/i.test(contractParam||'') ? contractParam : import.meta.env.VITE_BAZAAR_CONTRACT;
-$('chain').hidden=!feature;
+let feature=caseContract();
+const mapCanvas=$('map');
+const drawMap=makeMinimap(mapCanvas);
+let pinnedSuspect=null;
+function progress(message){
+  for(const id of ['network-status','dialog-status']){
+    const status=$(id);status.textContent=message;status.hidden=!message;
+  }
+}
+function encryptedEntry(){
+  if(feature){start(true);return;}
+  show('<div class="kicker">ZAMA · SEPOLIA</div><h2>Encrypted case</h2><p>Open a shared game link or enter the deployed Paws &amp; Alibis contract address.</p><form id="set-contract"><label for="contract-input">Sepolia contract</label><div class="contract-field"><input id="contract-input" type="text" placeholder="0x…" spellcheck="false" autocapitalize="off" autocomplete="off" required><button class="primary" type="submit">Connect</button></div><p id="contract-error" role="status"></p></form><a class="setup-link" href="/deploy.html">Deploy a game contract</a>');
+  $('set-contract').addEventListener('submit',event=>{
+    event.preventDefault();
+    const address=$('contract-input').value.trim();
+    if(!validContract(address)){$('contract-error').textContent='Enter the full Sepolia contract address.';return;}
+    feature=address;
+    modal.close();
+    start(true);
+  });
+}
 
 function label(phase,title,detail){
   $('phase').textContent=phase;$('objective').textContent=title;$('detail').textContent=detail;
@@ -73,7 +93,7 @@ function objective(){
   if(stage==='hunt'){
     label(verifiedCase?'SEPOLIA · INVESTIGATION':'CASE 01 · INVESTIGATION',clues.size===3?'Find your suspect':'Investigate the bazaar',clues.size===3?'Match the scarf, tail tip and paws.':clues.size+' / 3 clues · Follow the marker to inspect evidence.');
   }else if(stage==='chase'){
-    label(training?'PRACTICE · PURSUIT':'CASE 01 · PURSUIT','Catch the thief','Close the gap and pounce when the button lights up.');
+    label(training?'PRACTICE · PURSUIT':verifiedCase?'SEPOLIA · PURSUIT':'CASE 01 · PURSUIT','Catch the thief','Close the gap and pounce when the button lights up.');
   }else if(stage==='capture'){
     label('THIEF CAUGHT','Biryani recovered','');
   }else if(stage==='complete'){
@@ -82,6 +102,7 @@ function objective(){
     label('THIEF ESCAPED','Try the chase again','Open Case notes to retry.');
   }
   $('stamina').hidden=stage!=='chase';
+  mapCanvas.hidden=stage!=='hunt'&&stage!=='chase';
   chaseControls(stage==='chase');
 }
 function tell(text){
@@ -117,22 +138,26 @@ async function start(useChain=false){
     training=false;
     if(wantsChain && !verifiedCase){
       button.textContent='Connecting to Sepolia…';
-      const {makeVerified}=await import('./sepolia.js');game=await makeVerified(feature);
+      const {makeVerified}=await import('./sepolia.js');game=await makeVerified(feature,progress);rememberContract(feature);
     }else if(!wantsChain){game=makePractice();}
     const resumed=await game.start({resume:wantsChain&&stage==='cover'});
     verifiedCase=wantsChain;resetWorld();stage='hunt';
     if(resumed?.clues)clues=resumed.clues;
+    pinnedSuspect=null;
     $('cover').hidden=true;$('game').classList.remove('cover-visible');
     objective();ping(328);ping(493,.18,.045,.1);
     if(resumed?.result)beginChase(resumed.result);
-  }catch(e){tell(e.shortMessage||e.message||'Could not start the case.');}
-  finally{busy=false;button.disabled=false;$('chain').disabled=false;button.innerHTML=original;}
+  }catch(e){
+    feature=caseContract();
+    tell(e.shortMessage||e.message||'Could not start the case.');
+  }
+  finally{progress('');busy=false;button.disabled=false;$('chain').disabled=false;button.innerHTML=original;}
 }
 $('start').addEventListener('click',()=>start());
-$('chain').addEventListener('click',()=>start(true));
+$('chain').addEventListener('click',encryptedEntry);
 $('practice').addEventListener('click',()=>{
   if(busy)return;
-  verifiedCase=false;training=true;resetWorld();
+  verifiedCase=false;training=true;resetWorld();pinnedSuspect=null;
   leader=npcs[0];
   $('cover').hidden=true;gameRoot.classList.remove('cover-visible');
   retryChase();
@@ -143,34 +168,50 @@ function traits(id){
   return evidenceSites.map((s,i)=>[s.trait,s.values[(id>>i)&1]]);
 }
 function notes(){
-  const visible=Array.from(clues.entries()).sort(([a],[b])=>a-b).map(([i,bit])=>'<li>'+evidenceSites[i].line[bit]+'</li>').join('');
-  const roster=clues.size>=1?'<div class="suspect-list">'+cats.map((cat,id)=>{
-    const match=Array.from(clues).every(([i,bit])=>((id>>i)&1)===bit);
-    return '<div class="'+(match?'match':'eliminated')+'"><b>'+cat.name+'</b><br><span>'+traits(id).map(([label,v])=>label+' '+v).join(' · ')+'</span></div>';
+  const evidence=Array.from(clues.entries()).sort(([a],[b])=>a-b);
+  const entries=evidence.map(([i,bit])=>'<li>'+evidenceSites[i].line[bit]+'</li>').join('');
+  const roster=evidence.length?'<div class="suspect-list">'+cats.map((cat,id)=>{
+    const match=evidence.every(([i,bit])=>((id>>i)&1)===bit);
+    const info=traits(id).map(([label,v])=>label+' '+v).join(' · ');
+    if(match&&stage==='hunt')return '<button type="button" class="match track-suspect" data-suspect="'+id+'" aria-pressed="'+(pinnedSuspect===id)+'"><b>'+cat.name+'</b><small>'+info+'</small></button>';
+    return '<div class="'+(match?'match':'eliminated')+'"><b>'+cat.name+'</b><small>'+info+'</small></div>';
   }).join('')+'</div>':'';
-  show('<div class="kicker">DETECTIVE’S NOTEBOOK</div><h2>Case notes</h2>'+(visible?'<ul>'+visible+'</ul>':'<p>No evidence yet. Check the stalls and alley.</p>')+roster+(stage==='escaped'||stage==='complete'?'<button class="primary" id="again">New case</button>':''));
+  const chain=verifiedCase?'<p class="chain-case">Private evidence · Sepolia case #'+(game.caseId??'—')+'</p>'+proofLink():'';
+  const hint=entries&&stage==='hunt'?'<p class="track-help">Select a matching suspect to track them.</p>':'';
+  show('<div class="kicker">DETECTIVE’S NOTEBOOK</div><h2>Case notes</h2>'+chain+
+    (entries?'<ul>'+entries+'</ul>':'<p>No evidence yet. Check the stalls and alley.</p>')+
+    hint+roster+(stage==='escaped'||stage==='complete'?'<button class="primary" id="again">New case</button>':''));
   $('again')?.addEventListener('click',()=>{modal.close();start();});
+  $('panel-body').querySelectorAll('[data-suspect]').forEach(button=>button.addEventListener('click',()=>{
+    const id=Number(button.dataset.suspect);
+    pinnedSuspect=pinnedSuspect===id?null:id;
+    modal.close();
+    tell(pinnedSuspect===null?'Suspect tracking cleared.':'Tracking '+cats[id].name+'.');
+  }));
 }
 function show(html){$('panel-body').innerHTML=html;if(!modal.open)modal.showModal();}
 $('notebook').addEventListener('click',notes);
 $('help').addEventListener('click',()=>show('<div class="kicker">CONTROLS</div><h2>On the trail</h2><p><b>Desktop:</b> WASD or arrows to move, drag to look, Shift to sprint, Space to jump and E to interact.</p><p><b>Phone:</b> Use the left stick, drag the scene to look, and tap Sprint once to toggle it. Pounce has its own button during a chase.</p><p>Read the clues, question cats and pounce when you catch up to the thief.</p>'));
 function ask(id){
   const cat=cats[id];
-  show('<div class="kicker">SUSPECT</div><h2>'+cat.name+'</h2><ul>'+traits(id).map(([key,value])=>'<li>'+key+': <b>'+value+'</b></li>').join('')+'</ul><button class="primary" id="accuse">Accuse '+cat.name+'</button><button class="sub" id="let-go">Keep looking</button>');
+  show('<div class="kicker">SUSPECT</div><h2>'+cat.name+'</h2><ul>'+traits(id).map(([key,value])=>'<li>'+key+': <b>'+value+'</b></li>').join('')+'</ul><button class="primary" id="accuse">Accuse '+cat.name+'</button><button class="sub" id="let-go">Keep looking</button><p class="action-error" id="accuse-error" role="alert" hidden></p>');
   $('let-go').addEventListener('click',()=>modal.close());
   $('accuse').addEventListener('click',()=>accuse(id));
 }
 async function accuse(id){
   if(busy)return;
-  busy=true;$('accuse').disabled=true;$('accuse').textContent='Checking accusation…';
+  busy=true;$('accuse').disabled=true;$('accuse').textContent='Checking accusation…';$('accuse-error').hidden=true;
   try{
     const result=await game.accuse(id);
     modal.close();
     beginChase(result);
   }catch(e){
-    tell(e.shortMessage||e.message||'Could not check that accusation.');
-    if($('accuse')){$('accuse').disabled=false;$('accuse').textContent='Retry accusation';}
-  }finally{busy=false;}
+    const message=e.shortMessage||e.message||'Could not check that accusation.';
+    if($('accuse')){
+      $('accuse').disabled=false;$('accuse').textContent='Retry accusation';
+      $('accuse-error').textContent=message;$('accuse-error').hidden=false;
+    }else tell(message);
+  }finally{progress('');busy=false;}
 }
 function beginChase(result){
     verdict=result;
@@ -191,12 +232,15 @@ function beginChase(result){
     leader.fleeing=true;leader.speed=0;route=escapeRoute(leader);
     stage='chase';chaseTime=0;attempts=1;pounceRequest=0;chaseLead=1.1;shake=.18;objective();ping(329,.16);ping(220,.22,.055,.13);
 }
+function proofLink(){
+  return verdict?.receipt ? '<p class="proof"><a target="_blank" rel="noopener noreferrer" href="'+verdict.receipt+'">View investigation proof on Sepolia</a></p>' : '';
+}
 function finish(won){
   stage=won?'complete':'escaped';
   leader.speed=0;leader.fleeing=!won;
   objective();
   if(won){ping(523,.22);ping(659,.23,.05,.10);ping(784,.31,.05,.19);}
-  const proof=won&&verdict?.receipt ? '<p class="proof"><a target="_blank" rel="noopener noreferrer" href="'+verdict.receipt+'">View investigation proof on Sepolia</a></p>' : '';
+  const proof=proofLink();
   const deduction=won&&verdict ? '<p class="deduction">'+(verdict.correct?'Correct accusation':'Wrong accusation')+' · '+verdict.score+' investigation points</p>' : '';
   const stats=won?'<dl><div><dt>Chase time</dt><dd>'+chaseTime.toFixed(1)+'s</dd></div><div><dt>Attempts</dt><dd>'+attempts+'</dd></div></dl>':'';
   const next=training&&won?'Play the case':won?'New case':'Retry chase';
@@ -224,9 +268,10 @@ async function interact(){
   busy=true;$('act').disabled=true;
   try{
     const bit=await game.clue(id);clues.set(id,bit);
+    if(pinnedSuspect!==null&&((pinnedSuspect>>id)&1)!==bit)pinnedSuspect=null;
     tell(evidenceSites[id].line[bit]);ping(493);ping(659,.17,.04,.1);objective();
   }catch(error){tell(error.shortMessage||error.message||'Could not inspect that clue.');}
-  finally{busy=false;$('act').disabled=false;}
+  finally{progress('');busy=false;$('act').disabled=false;}
 }
 function pounce(){
   if(stage!=='chase'||cooldown>0||!startPounce(player,leader))return false;
@@ -347,10 +392,11 @@ function indicators(){
   }
   const evidence=evidenceSites.map((p,i)=>({...p,id:i,type:'evidence'})).filter(p=>!clues.has(p.id)).sort((a,b)=>distance(a,player)-distance(b,player));
   const close=npcs.filter(p=>distance(p,player)<1.85).sort((a,b)=>distance(a,player)-distance(b,player))[0];
-  let marker=evidence[0];
+  const nextClue=evidence[0];
+  let marker=pinnedSuspect===null?nextClue:npcs[pinnedSuspect];
   if(stage==='chase'){
     marker=leader;near=cooldown<=0&&canPounce(player,leader)?{type:'chase'}:null;
-  }else if(marker&&distance(marker,player)<2.25)near=marker;
+  }else if(nextClue&&distance(nextClue,player)<2.25)near=nextClue;
   else near=close?{type:'cat',id:close.id}:null;
   $('act').hidden=!near||(touchMode.matches&&stage==='chase');
   pounceButton.classList.toggle('ready',near?.type==='chase');
@@ -358,6 +404,7 @@ function indicators(){
   if(near)$('act').lastElementChild.textContent=near.type==='evidence'?'Inspect '+near.name:near.type==='chase'?'Pounce':'Question '+cats[near.id].name;
   const w=canvas.clientWidth,h=canvas.clientHeight,p=projection(view,w,h);
   $('waypoint').hidden=!marker;
+  drawMap(player,heading,marker,performance.now());
   if(marker){
     const [x,y,d]=p.point(marker.x,1.02,marker.z);
     const far=d<.25;
@@ -366,7 +413,7 @@ function indicators(){
     const yy=far?h*.45:Math.max(112,Math.min(h*.77,y));
     const el=$('waypoint');el.style.left=xx+'px';el.style.top=yy+'px';
     $('arrow').style.transform='rotate('+(far?(bias>=0?90:-90):180)+'deg)';
-    $('meters').textContent=Math.max(1,Math.round(distance(player,marker)))+' m';
+    $('meters').textContent=(pinnedSuspect!==null&&stage==='hunt'?cats[pinnedSuspect].name+' · ':'')+Math.max(1,Math.round(distance(player,marker)))+' m';
   }
   $('tag').hidden=stage!=='hunt'||!close||near?.type!=='cat';
   if(!$('tag').hidden){

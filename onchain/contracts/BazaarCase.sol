@@ -57,7 +57,7 @@ contract BazaarCase is ZamaEthereumConfig {
         game.hints[clue] = hint;
         game.opened |= flag;
         FHE.allowThis(hint);
-        FHE.makePubliclyDecryptable(hint);
+        FHE.allow(hint, game.player);
         emit EvidenceOpened(id, clue);
     }
 
