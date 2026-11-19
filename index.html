@@ -1,75 +1,13 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#171b17">
-  <meta name="description" content="Eight cats, one missing biryani. Rewind the bazaar footage and make your accusation.">
-  <title>Paws &amp; Alibis — The Missing Biryani</title>
-  <link rel="icon" href="/art/favicon.svg" type="image/svg+xml">
-</head>
-<body>
-  <header class="masthead">
-    <a class="wordmark" href="/" aria-label="Paws and Alibis home">PAWS <i>&amp;</i> ALIBIS</a>
-    <div class="top-actions"><button id="mode" hidden>Play on Sepolia</button><button id="sound" aria-pressed="false">Sound off</button><button id="help">How to play</button></div>
-  </header>
-  <main class="layout">
-    <section class="scene-column" aria-labelledby="case-title">
-      <div class="case-head">
-        <div class="eyebrow">QISSA KHWANI BAZAAR <span></span> CASE FILE 01</div>
-        <h1 id="case-title">Who stole<br>the <em>biryani?</em></h1>
-        <p>Eight cats left the courtyard. One took dinner.</p>
-      </div>
-      <div class="film">
-        <div class="screen" id="screen">
-          <img class="bazaar" src="/art/bazaar.webp" alt="" fetchpriority="high">
-          <div class="grading"></div>
-          <div class="event" id="event" hidden></div>
-          <div class="camera"><i></i> COURTYARD CAM</div>
-          <div class="timecode" id="clock">00:00</div>
-          <div id="models" aria-hidden="true"></div>
-          <div id="markers" aria-label="Cats in the footage"></div>
-          <div class="overlay" id="intro">
-            <button class="watch" id="watch"><span class="play-glyph" aria-hidden="true"></span> Watch footage</button>
-          </div>
-        </div>
-        <div class="player">
-          <button class="transport" id="play" aria-label="Play footage" title="Play / pause"><span class="play-glyph"></span></button>
-          <label class="visually-hidden" for="seek">Footage position</label>
-          <input id="seek" type="range" min="0" max="24" value="0" step="0.05">
-          <span class="duration">00:24</span>
-          <button id="rewind" class="rewind">Replay</button>
-        </div>
-      </div>
-      <div class="footnote"><span id="footage-note">Select a cat in the footage to track it.</span><span id="session-label">Practice case</span></div>
-    </section>
-    <aside class="board" aria-labelledby="board-title">
-      <div class="paper-top"><span>DETECTIVE'S NOTEBOOK</span><span id="points">300 PTS</span></div>
-      <h2 id="board-title">The suspects</h2>
-      <p class="guide">Pick a suspect. Use evidence if you need it.</p>
-      <div class="suspects" id="suspects" aria-label="Suspects"></div>
-      <div class="evidence">
-        <div class="evidence-head"><h3>Evidence</h3><span id="clue-count">0 / 3 opened</span></div>
-        <div class="evidence-list" id="clues"></div>
-      </div>
-      <button class="accuse" id="accuse" disabled>Choose a suspect</button>
-      <div id="status" class="status" aria-live="polite"></div>
-    </aside>
-  </main>
-  <dialog id="rules" aria-labelledby="rules-title">
-    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
-    <div class="eyebrow">CASE FILE 01</div>
-    <h2 id="rules-title">Play detective</h2>
-    <ol><li>Watch the footage. Tap a cat or its portrait to track it.</li><li>Open evidence to see which landmarks the thief passed. Each clue costs 75 points.</li><li>Scrub to the marked moments and compare routes. You get one accusation.</li></ol>
-    <form method="dialog"><button class="accuse">Back to the bazaar</button></form>
-  </dialog>
-  <dialog id="result" aria-labelledby="result-title">
-    <form method="dialog"><button class="close" aria-label="Close">×</button></form>
-    <div class="eyebrow" id="result-label"></div>
-    <div class="result-art" id="result-art"></div>
-    <h2 id="result-title"></h2><p id="result-text"></p>
-    <div class="result-actions"><button class="accuse" id="share">Share result</button><button class="secondary" id="getaway">Watch getaway</button><button class="secondary" id="restart">New case</button></div>
-  </dialog>
-  <script type="module" src="/src/main.js"></script>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#191914"><meta name="description" content="Explore the bazaar, find the biryani thief and chase them through the back alleys."><link rel="icon" href="/art/favicon.svg" type="image/svg+xml"><title>Paws &amp; Alibis — Qissa Khwani</title></head>
+<body><main id="game" aria-label="Paws and Alibis"><canvas id="world" aria-label="Interactive 3D bazaar"></canvas><div class="vignette" aria-hidden="true"></div>
+<header class="top"><div class="brand">PAWS <em>&amp;</em> ALIBIS</div><nav><button id="audio" aria-pressed="false">Sound off</button><button id="notebook">Case notes</button><button id="help" aria-label="Controls">?</button></nav></header>
+<section class="objective" aria-live="polite"><div class="kicker" id="phase">QISSA KHWANI · CASE 01</div><h1 id="objective">Find the biryani thief</h1><p id="detail">Search the bazaar for evidence.</p><div class="stamina" id="stamina" hidden><i></i></div></section>
+<div class="compass" id="waypoint" hidden><span id="arrow">▲</span><span id="meters"></span></div>
+<div class="tag" id="tag" hidden></div>
+<button class="prompt" id="act" hidden><kbd>E</kbd><span></span></button>
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="controls"><div><kbd>W A S D</kbd> Move</div><div><kbd>SHIFT</kbd> Sprint</div><div><kbd>SPACE</kbd> Jump</div><div>Drag to look</div></div>
+<div class="touch"><div id="stick" role="group" aria-label="Move joystick"><i></i></div><div class="touch-actions"><button id="sprint">Sprint</button><button id="jump">Jump</button></div></div>
+<section id="cover" class="cover"><div class="cover-inner"><div class="kicker">THE FIRST CASE</div><h2>Who stole<br>the <em>biryani?</em></h2><p>Track the thief through the streets of Qissa Khwani.</p><button id="start" class="primary">Enter the bazaar <span>↗</span></button><button id="chain" class="mode" hidden>Use a Sepolia wallet</button></div></section>
+<dialog id="panel"><form method="dialog"><button class="close" aria-label="Close">×</button></form><div id="panel-body"></div></dialog>
+</main><script type="module" src="/src/game.js"></script></body></html>

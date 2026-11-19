@@ -1,6 +1,6 @@
 # Paws & Alibis
 
-Eight cats pass through a Peshawar-inspired bazaar. One took the biryani. Replay the footage, open evidence, and identify the thief. Each clue reveals one landmark and costs 75 points. One accusation closes the case.
+Eight cats pass through a Peshawar-inspired bazaar. One took the biryani. Explore the market in third person, collect three clues, and question the cats. When the thief runs, sprint through the alleys and pounce when you catch up. The original footage mini-game remains available at `/footage.html`.
 
 ## Play locally
 
@@ -13,11 +13,11 @@ npm test
 npm run build
 ```
 
-Practice opens without a wallet and stores its answer in the browser. The original bazaar background and procedural Three.js cats are local assets. Browsers without WebGL use animated, prerendered 3D cat sprites. Rebuild the fallback art with `python3 design/render-cats.py` (Pillow and NumPy).
+Practice opens without a wallet and stores its answer in the browser. The bazaar has traversable market stalls, side streets and a north gate. Desktop uses WASD or arrow keys, Shift, Space, E, and drag to turn the camera. Phones have a joystick and touch buttons. A software perspective renderer keeps the level playable on browsers without WebGL. Rebuild the original cat sprite sheet with `python3 design/render-cats.py` (Pillow and NumPy).
 
 ## Encrypted Sepolia mode
 
-The Solidity game selects an encrypted culprit uniformly from eight possibilities. Each request marks only its computed one-bit clue decryptable. Accusing locks the guess before the answer can be decrypted. Settlement verifies the Zama KMS proof for the case's reveal handle and computes the score from onchain state. Runs are independent. Case-local clue results may be decrypted publicly once opened. No wagers or prizes.
+The Solidity game selects an encrypted culprit uniformly from eight possibilities. Each request marks only its computed one-bit clue decryptable (scarf, tail tip and paws in the 3D level). Accusing locks the guess before the answer can be decrypted. Settlement verifies the Zama KMS proof for the case's reveal handle and computes the score from onchain state. Runs are independent. Case-local clue results may be decrypted publicly once opened. No wagers or prizes.
 
 ```sh
 cd onchain
@@ -27,6 +27,6 @@ npm test
 npm run deploy:sepolia
 ```
 
-Set the emitted address as `VITE_BAZAAR_CONTRACT` in the Vite build environment, then rebuild the frontend. Players enter **Play on Sepolia** with a wallet browser and Sepolia test ETH. Each attempt can be finished from one wallet.
+Set the emitted address as `VITE_BAZAAR_CONTRACT` in the Vite build environment, then rebuild the frontend. Players enter **Play on Sepolia** with a wallet browser and Sepolia test ETH. Each attempt can be finished from one wallet. The contract verifies deductions and the client runs exploration and pursuit.
 
 Do not put the deployer key in the frontend, repository, or hosting variables. Without the contract address the site serves practice mode.
