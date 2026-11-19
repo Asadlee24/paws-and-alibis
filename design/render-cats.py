@@ -1,6 +1,7 @@
 """Render the software fallback for the animated cats; requires numpy and Pillow."""
 from pathlib import Path
 import re
+import sys
 import numpy as np
 from PIL import Image, ImageColor
 
@@ -8,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 COLORS = re.findall(r"fur:'(#[a-f0-9]+)', dark:'(#[a-f0-9]+)', cream:'(#[a-f0-9]+)', eyes:'(#[a-f0-9]+)'",
                     (ROOT / "src/case.js").read_text())
 WIDTH, HEIGHT, SCALE, FRAMES = 90, 65, 2, 6
+OUTPUT_SCALE = 2 if '--2x' in sys.argv else 1
+FRAME_W, FRAME_H = WIDTH * OUTPUT_SCALE, HEIGHT * OUTPUT_SCALE
 Y, X = np.mgrid[:HEIGHT*SCALE, :WIDTH*SCALE] / SCALE
 X = X - WIDTH / 2
 Y = HEIGHT - Y - 5
@@ -70,12 +73,13 @@ def render(colors, frame, parcel):
     if parcel:
         mesh('#dbab64',(31,17+bounce,11),(8.4,5.5,5),.18)
         mesh('#84432f',(31,17+bounce,15),(1.3,5.4,1.2),.18)
-    return Image.fromarray(result).resize((WIDTH, HEIGHT), Image.Resampling.LANCZOS)
+    return Image.fromarray(result).resize((FRAME_W, FRAME_H), Image.Resampling.LANCZOS)
 
 
-sheet = Image.new('RGBA', (WIDTH*FRAMES*2, HEIGHT*len(COLORS)))
+sheet = Image.new('RGBA', (FRAME_W*FRAMES*2, FRAME_H*len(COLORS)))
 for i, colors in enumerate(COLORS):
     for packed in (False, True):
         for frame in range(FRAMES):
-            sheet.paste(render(colors, frame, packed), ((frame+FRAMES*int(packed))*WIDTH, i*HEIGHT))
-sheet.save(ROOT / 'public/art/cat-frames.webp', quality=88, method=6)
+            sheet.paste(render(colors, frame, packed), ((frame+FRAMES*int(packed))*FRAME_W, i*FRAME_H))
+filename = 'cat-frames-2x.webp' if OUTPUT_SCALE == 2 else 'cat-frames.webp'
+sheet.save(ROOT / 'public/art' / filename, quality=88, method=6)

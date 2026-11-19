@@ -433,8 +433,9 @@ function indicators(){
 }
 function tick(now){
   const dt=Math.max(.001,Math.min(.05,(now-(previous||now))/1000));previous=now;time+=dt;
-  update(dt,wideFraming());
-  renderer?.draw({view,player,npcs,time,heading});
+  const wide=wideFraming();
+  update(dt,wide);
+  renderer?.draw({view,player,npcs,time,heading,wide});
   indicators();
   requestAnimationFrame(tick);
 }

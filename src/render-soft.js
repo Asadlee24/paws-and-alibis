@@ -90,10 +90,13 @@ export function makeSoftWorld(canvas,street) {
   const ctx=canvas.getContext('2d',{alpha:false});
   if(!ctx)throw new Error('This browser could not start the 3D view.');
   const faces=terrain(street),imgs={};
-  for(const name of ['cobble','stone','wood','rug','dusk','cat-frames','hero-frames']){
+  const loadImage=name=>{
     const image=new Image();
     image.src='/art/'+name+'.webp';
     imgs[name]=image;
+  };
+  for(const name of ['cobble','stone','wood','rug','dusk','cat-frames','hero-frames']){
+    loadImage(name);
   }
   let last=0;
   const isReady=im=>im?.complete&&im.naturalWidth;
@@ -127,7 +130,12 @@ export function makeSoftWorld(canvas,street) {
     last=now;
     const width=canvas.clientWidth,height=canvas.clientHeight;
     if(!width||!height)return;
-    const scale=Math.min(1,1000/width,720/height);
+    const desktop=state.wide>0;
+    if(desktop&&!imgs['hero-frames-2x']){
+      loadImage('hero-frames-2x');
+      loadImage('cat-frames-2x');
+    }
+    const scale=desktop?Math.min(1,1600/width,1080/height):Math.min(1,1000/width,720/height);
     const w=Math.round(width*scale),h=Math.round(height*scale);
     if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
     const gradient=ctx.createLinearGradient(0,0,0,h*.65);
@@ -180,7 +188,10 @@ export function makeSoftWorld(canvas,street) {
         const {cat,point:[x,y,z]}=o;
         const size=proj.lens*1.14/z;
         const hero=cat===state.player;
-        const image=hero ? imgs['hero-frames']:imgs['cat-frames'];
+        const atlas=hero?'hero-frames':'cat-frames';
+        const sharp=desktop&&isReady(imgs[atlas+'-2x']);
+        const image=sharp?imgs[atlas+'-2x']:imgs[atlas];
+        const frameWidth=sharp?180:90,frameHeight=sharp?130:65;
         const floor=proj.point(cat.x,.01,cat.z);
         ctx.fillStyle='rgba(31,19,13,.24)';
         ctx.beginPath();ctx.ellipse(floor[0],floor[1],size*.39,size*.091,0,0,Math.PI*2);ctx.fill();
@@ -192,11 +203,11 @@ export function makeSoftWorld(canvas,street) {
             const relative=Math.atan2(Math.sin(cat.yaw-state.heading),Math.cos(cat.yaw-state.heading));
             const direction=(Math.round(relative/(Math.PI/4))+8)%8;
             const stretch=cat.pounce>0?1.24:1;
-            ctx.drawImage(image,g*90,direction*65,90,65,x-size*.55*stretch,y-size*.77,size*1.1*stretch,size*(cat.pounce>0?.69:.795));
+            ctx.drawImage(image,g*frameWidth,direction*frameHeight,frameWidth,frameHeight,x-size*.55*stretch,y-size*.77,size*1.1*stretch,size*(cat.pounce>0?.69:.795));
           } else {
             const frame=g+(cat.fleeing?6:0);
             ctx.save();ctx.translate(x,y);ctx.scale(side<0?-1:1,1);
-            ctx.drawImage(image,frame*90,id*65,90,65,-size*.68,-size*(cat.pinned?.55:.82),size*1.36,size*(cat.pinned?.69:.98));
+            ctx.drawImage(image,frame*frameWidth,id*frameHeight,frameWidth,frameHeight,-size*.68,-size*(cat.pinned?.55:.82),size*1.36,size*(cat.pinned?.69:.98));
             ctx.restore();
           }
         }else{

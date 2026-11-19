@@ -1,10 +1,13 @@
 """Render eight camera angles of the detective and its walk cycle for Canvas2D."""
 from pathlib import Path
+import sys
 
 import numpy as np
 from PIL import Image, ImageColor
 
 W, H, SCALE = 90, 65, 3
+OUTPUT_SCALE = 2 if '--2x' in sys.argv else 1
+FRAME_W, FRAME_H = W * OUTPUT_SCALE, H * OUTPUT_SCALE
 Y, X = np.mgrid[:H*SCALE, :W*SCALE] / SCALE
 X = X - W/2
 Y = H - Y - 5
@@ -83,11 +86,12 @@ def render(angle, phase):
     oval('#9c625b',(28.6,25+bob,0),(1.4,1,2))
     oval(SHADE,(16.9,34.9+bob,0),(7.9,1.8,7.5),-.09)
     oval('#47362c',(17.1,36.6+bob,0),(6.3,2.05,6.2),-.09)
-    return Image.fromarray(frame).resize((W,H),Image.Resampling.LANCZOS)
+    return Image.fromarray(frame).resize((FRAME_W,FRAME_H),Image.Resampling.LANCZOS)
 
-sheet=Image.new('RGBA',(W*6,H*8))
+sheet=Image.new('RGBA',(FRAME_W*6,FRAME_H*8))
 for heading in range(8):
     angle=np.pi-heading*np.pi/4
     for i in range(6):
-        sheet.paste(render(angle,i*np.pi/3),(i*W,heading*H))
-sheet.save(Path(__file__).resolve().parents[1]/'public/art/hero-frames.webp', quality=88,method=6)
+        sheet.paste(render(angle,i*np.pi/3),(i*FRAME_W,heading*FRAME_H))
+filename='hero-frames-2x.webp' if OUTPUT_SCALE==2 else 'hero-frames.webp'
+sheet.save(Path(__file__).resolve().parents[1]/'public/art'/filename, quality=88,method=6)
