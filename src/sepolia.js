@@ -39,7 +39,7 @@ export async function makeVerified(address) {
   }
   wasm??=initSDK({thread:1}).catch(error=>{wasm=null;throw error;});
   await wasm;
-  const relayer=await createInstance({...SepoliaConfig,network:provider.provider});
+  const relayer=await createInstance({...SepoliaConfig,network:{request:({method,params})=>provider.send(method,params??[])}});
   let caseId;
 
   async function decrypt(handles){
