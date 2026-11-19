@@ -174,13 +174,18 @@ export function makeWorld(canvas,street,context) {
   function draw(state){
     const w=canvas.clientWidth,h=canvas.clientHeight;
     if(!w||!h)return;
-    if(w!==lastW||h!==lastH){
+    const {view,player,npcs}=state;
+    const resized=w!==lastW||h!==lastH;
+    if(resized){
       renderer.setPixelRatio(Math.min(devicePixelRatio,w<800?1.5:1.6));
       renderer.setSize(w,h,false);
-      camera.aspect=w/h;camera.updateProjectionMatrix();
       lastW=w;lastH=h;
     }
-    const {view,player,npcs}=state;
+    if(resized||Math.abs(camera.fov-view.fov)>.01){
+      camera.aspect=w/h;
+      camera.fov=view.fov;
+      camera.updateProjectionMatrix();
+    }
     camera.position.set(view.x,view.y,view.z);
     sky.position.copy(camera.position);
     const chunk=Math.round(player.x/2)+':'+Math.round(player.z/2);

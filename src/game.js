@@ -7,7 +7,7 @@ import './game.css';
 import {cats,makePractice} from './case.js';
 import {entrance,evidenceSites,newVisitors,patrol,distance,escapeRoute,advanceEscape,heightAt} from './district.js';
 import {makeStreet} from './scenery.js';
-import {follow,projection} from './camera.js';
+import {desktopFraming,follow,projection} from './camera.js';
 import {makePlayer,stepPlayer,startPounce,canPounce} from './motion.js';
 import {POUNCE_BUFFER,consumePounce} from './chase-input.js';
 import {caseContract,rememberContract,validContract} from './case-config.js';
@@ -36,6 +36,7 @@ function useSoftware(){
 const keys=new Set();
 let game=makePractice(),verifiedCase=false,verdict=null,view,heading=0,pitch=0,npcs,player,clues,route,leader;
 let stage='cover',near=null,time=0,previous=0,busy=false,stamina=1,chaseLead=0,jumpQueued=false;
+let titleWide;
 let jx=0,jy=0,audio,muted=true,toastTimer,shake=0,cooldown=0,pinTime=0,stepClock=0,airborne=false;
 const modal=$('panel');
 const gameRoot=$('game');
@@ -57,10 +58,11 @@ function chaseControls(active){
 }
 
 const prefs=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const wideFraming=()=>desktopFraming(canvas.clientWidth,canvas.clientHeight,touchMode.matches);
 const newHero=()=>makePlayer(entrance);
 function resetWorld(){
   player=newHero();npcs=newVisitors();clues=new Map();route=[];leader=null;
-  heading=0;pitch=0;stamina=1;time=0;near=null;cooldown=0;pinTime=0;stepClock=0;airborne=false;verdict=null;pounceRequest=0;chaseTime=0;attempts=0;toggleSprint(false);chaseControls(false);view=follow(player,heading,pitch);
+  heading=0;pitch=0;stamina=1;time=0;near=null;cooldown=0;pinTime=0;stepClock=0;airborne=false;verdict=null;pounceRequest=0;chaseTime=0;attempts=0;toggleSprint(false);chaseControls(false);view=follow(player,heading,pitch,null,prefs,{wide:wideFraming()});
 }
 resetWorld();
 $('game').classList.add('cover-visible');
@@ -255,7 +257,7 @@ function retryChase(){
   const spawn={x:0,z:training?4.15:5.7,y:0};
   Object.assign(player,newHero());
   Object.assign(leader,{...spawn,pinned:false,fleeing:true,speed:0});
-  route=escapeRoute(spawn);heading=0;pitch=0;view=follow(player,0,0);
+  route=escapeRoute(spawn);heading=0;pitch=0;view=follow(player,0,0,null,prefs,{wide:wideFraming()});
   resetInput();toggleSprint(false);stamina=1;cooldown=0;chaseTime=0;attempts++;
   chaseLead=training?.85:1.35;stage='chase';objective();
 }
@@ -346,8 +348,15 @@ bindCamera();
 modal.addEventListener('close',()=>{if(!modal.open)resetInput();});
 const key=(...codes)=>codes.some(c=>keys.has(c))?1:0;
 
-function update(dt){
-  if(stage==='cover'||modal.open)return;
+function update(dt,wide){
+  if(stage==='cover'){
+    if(titleWide!==wide){
+      titleWide=wide;
+      view=follow(player,heading,pitch,null,prefs,{wide,cover:true});
+    }
+    return;
+  }
+  if(modal.open)return;
   const x=key('KeyD','ArrowRight')-key('KeyA','ArrowLeft')+jx;
   const z=key('KeyW','ArrowUp')-key('KeyS','ArrowDown')+jy;
   cooldown=Math.max(0,cooldown-dt);
@@ -381,7 +390,7 @@ function update(dt){
     }
   }
   jumpQueued=false;
-  const next=follow(player,heading,pitch,stage==='capture'?leader:null,prefs);
+  const next=follow(player,heading,pitch,stage==='capture'?leader:null,prefs,{wide});
   for(const k of Object.keys(next))view[k]+=(next[k]-view[k])*Math.min(1,dt*(k.length===1?11:14));
   if(shake>.001){if(!prefs)view.x+=Math.sin(time*65)*shake;shake*=.89;}
 }
@@ -424,7 +433,7 @@ function indicators(){
 }
 function tick(now){
   const dt=Math.max(.001,Math.min(.05,(now-(previous||now))/1000));previous=now;time+=dt;
-  update(dt);
+  update(dt,wideFraming());
   renderer?.draw({view,player,npcs,time,heading});
   indicators();
   requestAnimationFrame(tick);

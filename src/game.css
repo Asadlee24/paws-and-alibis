@@ -43,3 +43,12 @@
 .action-error{margin:9px 0 0;color:#8b3828}
 
 .project-notice{display:block;max-width:31em;margin-top:16px;color:#dbc49f;font-size:12px;line-height:1.4}
+
+@media (pointer:fine) and (min-width:761px) and (min-aspect-ratio:6/5){
+  .cover{
+    background:
+      linear-gradient(90deg,#1b1712ed 0%,#1b1712bc 27%,#21191040 52%,transparent 73%),
+      linear-gradient(0deg,#1e150eb0 0%,transparent 36%);
+  }
+  .cover h2{font-size:clamp(66px,min(9vw,17vh),138px)}
+}
